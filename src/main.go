@@ -1,13 +1,17 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"time"
 
-	handlers "github.com/Ra1ze505/goNewsBot/src/handlers"
-	middleware "github.com/Ra1ze505/goNewsBot/src/middleware"
+	"github.com/Ra1ze505/goNewsBot/src/handlers"
+	"github.com/Ra1ze505/goNewsBot/src/middleware"
+	"github.com/Ra1ze505/goNewsBot/src/repository"
 
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	tele "gopkg.in/telebot.v4"
@@ -31,19 +35,26 @@ func main() {
 
 	bot, err := tele.NewBot(pref)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 		return
 	}
 
 	bot.Use(middleware.MessageLogger())
 
-	addHandlers(bot)
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "failed to open database connection"))
+	}
+	defer db.Close()
+
+	userRepo := repository.NewUserRepository(db)
+
+	addHandlers(bot, userRepo)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot) {
-
-	bot.Handle("/hello", handlers.HelloHandle)
+func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface) {
+	bot.Handle("/start", handlers.HelloHandle(userRepo))
 	bot.Handle("/weather", handlers.WeatherHandle)
 	bot.Handle(tele.OnText, handlers.EchoHandle)
 }

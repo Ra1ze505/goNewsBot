@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	tele "gopkg.in/telebot.v4"
 )
 
@@ -58,13 +57,9 @@ func buildQuery() url.URL {
 }
 
 func WeatherHandle(context tele.Context) error {
-
 	query := buildQuery()
 
-	log.Infof("Get query: %s", query.String())
-
 	r, err := http.Get(query.String())
-
 	if err != nil {
 		return err
 	}
@@ -79,10 +74,6 @@ func WeatherHandle(context tele.Context) error {
 	var resp WeatherResponse
 
 	json.Unmarshal(body, &resp)
-
-	log.Infof("Status: %s Data: %s", r.Status, body)
-	log.Infof("Parsed: %v", resp)
-
 	answer, err := buildAnswer(&resp)
 
 	if err != nil {
@@ -90,5 +81,5 @@ func WeatherHandle(context tele.Context) error {
 	}
 	context.Send(answer)
 
-	return nil
+	return fmt.Errorf("test err")
 }
