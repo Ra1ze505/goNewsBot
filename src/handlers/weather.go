@@ -1,15 +1,44 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"io"
-	"encoding/json"
 
 	log "github.com/sirupsen/logrus"
 	tele "gopkg.in/telebot.v4"
 )
+
+const template = "Погода в городе: %s\n%.1f градусов\n%s"
+
+type MainResponse struct {
+	Temp float64 `json:"temp"`
+}
+
+type WResponse struct {
+	Desc string `json:"description"`
+}
+
+type WeatherResponse struct {
+	Main    MainResponse `json:"main"`
+	City    string       `json:"name"`
+	Weather []WResponse  `json:"weather"`
+}
+
+func buildAnswer(resp *WeatherResponse) (string, error) {
+	if resp == nil {
+		return "", fmt.Errorf("got empty response")
+	}
+
+	if len(resp.Weather) == 0 {
+		return "", fmt.Errorf("got empty weather in response")
+	}
+
+	return fmt.Sprintf(template, resp.City, resp.Main.Temp, resp.Weather[0].Desc), nil
+}
 
 func buildQuery() url.URL {
 	api_key := os.Getenv("WEATHER_API_KEY")
@@ -25,7 +54,7 @@ func buildQuery() url.URL {
 	dst_query.Set("appid", api_key)
 
 	dst.RawQuery = dst_query.Encode()
-	return dst 
+	return dst
 }
 
 func WeatherHandle(context tele.Context) error {
@@ -34,20 +63,32 @@ func WeatherHandle(context tele.Context) error {
 
 	log.Infof("Get query: %s", query.String())
 
-	resp, err := http.Get(query.String())
+	r, err := http.Get(query.String())
 
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	defer r.Body.Close()
+	body, err := io.ReadAll(r.Body)
 
-	data := json.NewDecoder(resp.Body)
-	data.Decode()
+	if err != nil {
+		return err
+	}
 
-	log.Infof("Status: %s Data: %s", resp.Status, body)
+	var resp WeatherResponse
 
-	return context.Send("pu")
+	json.Unmarshal(body, &resp)
 
+	log.Infof("Status: %s Data: %s", r.Status, body)
+	log.Infof("Parsed: %v", resp)
+
+	answer, err := buildAnswer(&resp)
+
+	if err != nil {
+		return err
+	}
+	context.Send(answer)
+
+	return nil
 }

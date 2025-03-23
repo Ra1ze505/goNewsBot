@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"newsBot/handlers"
-	"newsBot/middleware"
+	handlers "github.com/Ra1ze505/goNewsBot/src/handlers"
+	middleware "github.com/Ra1ze505/goNewsBot/src/middleware"
 
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
