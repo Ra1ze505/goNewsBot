@@ -57,7 +57,7 @@ func TestHelloHandle_ErrorFromRepository(t *testing.T) {
 	f := m(nextMock)
 	err := f(mockContext)
 	if err == nil {
-		t.Errorf("Unexpected error == nil")
+		t.Error("Expected error but got nil")
 	}
 }
 
