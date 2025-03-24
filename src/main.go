@@ -39,8 +39,6 @@ func main() {
 		return
 	}
 
-	bot.Use(middleware.MessageLogger())
-
 	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "failed to open database connection"))
@@ -49,12 +47,14 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 
-	addHandlers(bot, userRepo)
+	bot.Use(middleware.MessageLogger())
+	bot.Use(middleware.CreateOrUpdateUser(userRepo))
+	addHandlers(bot)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface) {
-	bot.Handle("/start", handlers.HelloHandle(userRepo))
+func addHandlers(bot *tele.Bot) {
+	bot.Handle("/start", handlers.HelloHandle)
 	bot.Handle("/weather", handlers.WeatherHandle)
 	bot.Handle(tele.OnText, handlers.EchoHandle)
 }

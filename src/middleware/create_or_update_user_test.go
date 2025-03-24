@@ -1,15 +1,19 @@
-package handlers_test
+package middleware_test
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/Ra1ze505/goNewsBot/src/handlers"
+	"github.com/Ra1ze505/goNewsBot/src/middleware"
 	"github.com/Ra1ze505/goNewsBot/src/mocks/repository"
 	"github.com/Ra1ze505/goNewsBot/src/mocks/telebot"
 	gomock "go.uber.org/mock/gomock"
 	tele "gopkg.in/telebot.v4"
 )
+
+func nextMock(c tele.Context) error {
+	return nil
+}
 
 func TestHelloHandle_CreateOrUpdateUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -24,9 +28,9 @@ func TestHelloHandle_CreateOrUpdateUser(t *testing.T) {
 	}
 	mockContext := mock_telebot.NewMockContext(ctrl)
 	mockContext.EXPECT().Sender().AnyTimes().Return(mockUser)
-	mockContext.EXPECT().Send(gomock.Any())
 
-	f := handlers.HelloHandle(mockRepo)
+	m := middleware.CreateOrUpdateUser(mockRepo)
+	f := m(nextMock)
 	err := f(mockContext)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -49,9 +53,11 @@ func TestHelloHandle_ErrorFromRepository(t *testing.T) {
 	mockContext.EXPECT().Sender().AnyTimes().Return(mockUser)
 	mockContext.EXPECT().Send(gomock.Any())
 
-	f := handlers.HelloHandle(mockRepo)
+	m := middleware.CreateOrUpdateUser(mockRepo)
+	f := m(nextMock)
 	err := f(mockContext)
 	if err == nil {
-		t.Error("Expected error but got nil")
+		t.Errorf("Unexpected error == nil")
 	}
 }
+
