@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Ra1ze505/goNewsBot/src/handlers"
+	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	"github.com/Ra1ze505/goNewsBot/src/middleware"
 	"github.com/Ra1ze505/goNewsBot/src/repository"
 
@@ -22,7 +23,6 @@ func loadEnv() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-
 }
 
 func main() {
@@ -46,15 +46,42 @@ func main() {
 	defer db.Close()
 
 	userRepo := repository.NewUserRepository(db)
+	weatherRepo := repository.NewWeatherRepository()
+	stateStorage := handlers.NewStateStorage()
 
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(userRepo))
-	addHandlers(bot)
+	addHandlers(bot, userRepo, weatherRepo, stateStorage)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot) {
+func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, weatherRepo repository.WeatherRepositoryInterface, stateStorage *handlers.StateStorage) {
+	// Start command
 	bot.Handle("/start", handlers.HelloHandle)
-	bot.Handle("/weather", handlers.WeatherHandle)
-	bot.Handle(tele.OnText, handlers.EchoHandle)
+
+	// Initialize handlers
+	changeCityHandler := handlers.NewChangeCityHandler(userRepo, weatherRepo, stateStorage)
+
+	// Button handlers
+	bot.Handle(&keyboard.WeatherBtn, handlers.WeatherHandle)
+	bot.Handle(&keyboard.RateBtn, handlers.RateHandle)
+	bot.Handle(&keyboard.NewsBtn, handlers.NewsHandle)
+	bot.Handle(&keyboard.ChangeCityBtn, changeCityHandler.Handle)
+	bot.Handle(&keyboard.ChangeTimeBtn, handlers.ChangeTimeHandle)
+	bot.Handle(&keyboard.AboutBtn, handlers.AboutHandle)
+	bot.Handle(&keyboard.ContactBtn, handlers.ContactHandle)
+
+	// Text message handler
+	bot.Handle(tele.OnText, func(c tele.Context) error {
+		user, ok := c.Get("user").(*repository.User)
+		if !ok {
+			return nil
+		}
+
+		state := stateStorage.GetState(user.ChatID)
+		if state != nil && state.ChangingCity {
+			return changeCityHandler.HandleCityInput(c)
+		}
+		return nil
+	})
 }

@@ -42,11 +42,12 @@ func (m *MockUserRepositoryInterface) EXPECT() *MockUserRepositoryInterfaceMockR
 }
 
 // CreateOrUpdateUser mocks base method.
-func (m *MockUserRepositoryInterface) CreateOrUpdateUser(user *repository.User) error {
+func (m *MockUserRepositoryInterface) CreateOrUpdateUser(user *repository.User) (*repository.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOrUpdateUser", user)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*repository.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateOrUpdateUser indicates an expected call of CreateOrUpdateUser.
@@ -70,16 +71,16 @@ func (mr *MockUserRepositoryInterfaceMockRecorder) GetUsersByMailingTime(mailing
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByMailingTime", reflect.TypeOf((*MockUserRepositoryInterface)(nil).GetUsersByMailingTime), mailingTime)
 }
 
-// UpdateUser mocks base method.
-func (m *MockUserRepositoryInterface) UpdateUser(user *repository.User) error {
+// UpdateUserCityAndTimezone mocks base method.
+func (m *MockUserRepositoryInterface) UpdateUserCityAndTimezone(userID *int, city, timezone string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUser", user)
+	ret := m.ctrl.Call(m, "UpdateUserCityAndTimezone", userID, city, timezone)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateUser indicates an expected call of UpdateUser.
-func (mr *MockUserRepositoryInterfaceMockRecorder) UpdateUser(user any) *gomock.Call {
+// UpdateUserCityAndTimezone indicates an expected call of UpdateUserCityAndTimezone.
+func (mr *MockUserRepositoryInterfaceMockRecorder) UpdateUserCityAndTimezone(userID, city, timezone any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUser", reflect.TypeOf((*MockUserRepositoryInterface)(nil).UpdateUser), user)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCityAndTimezone", reflect.TypeOf((*MockUserRepositoryInterface)(nil).UpdateUserCityAndTimezone), userID, city, timezone)
 }

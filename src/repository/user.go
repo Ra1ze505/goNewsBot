@@ -10,7 +10,7 @@ import (
 )
 
 type User struct {
-	ID          int       `db:"id"`
+	ID          *int      `db:"id"`
 	Username    *string   `db:"username"`
 	ChatID      int64     `db:"chat_id"`
 	CreatedAt   time.Time `db:"created_at"`
@@ -20,9 +20,9 @@ type User struct {
 }
 
 type UserRepositoryInterface interface {
-	CreateOrUpdateUser(user *User) error
-	UpdateUser(user *User) error
+	CreateOrUpdateUser(user *User) (*User, error)
 	GetUsersByMailingTime(mailingTime time.Time) ([]*User, error)
+	UpdateUserCityAndTimezone(userID *int, city string, timezone string) error
 }
 
 type UserRepository struct {
@@ -33,32 +33,35 @@ func NewUserRepository(db *sql.DB) UserRepositoryInterface {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) CreateOrUpdateUser(user *User) error {
-	stmt := `
-	INSERT INTO users (username, chat_id, city, timezone, mailing_time)
-	VALUES ($1, $2, $3, $4, $5) ON CONFLICT (chat_id) DO
-	UPDATE
-	SET username = EXCLUDED.username
-	`
-	_, err := r.db.Exec(stmt, user.Username, user.ChatID, user.City, user.Timezone, user.MailingTime)
+func (r *UserRepository) CreateOrUpdateUser(user *User) (*User, error) {
+	var id int
+	err := r.db.QueryRow(`
+		INSERT INTO users (username, chat_id, city, timezone, mailing_time)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (chat_id) DO UPDATE
+		SET username = EXCLUDED.username
+		RETURNING id
+	`, user.Username, user.ChatID, user.City, user.Timezone, user.MailingTime).Scan(&id)
 
 	if err != nil {
-		return errors.Wrap(err, "failed to create user")
+		return nil, errors.Wrap(err, "failed to create or update user")
 	}
-	return nil
-}
 
-func (r *UserRepository) UpdateUser(user *User) error {
-	stmt := `UPDATE users SET username = ?, city = ?, timezone = ?, mailing_time = ? WHERE id = ?`
-	_, err := r.db.Exec(stmt, user.Username, user.City, user.Timezone, user.MailingTime, user.ID)
-	if err != nil {
-		return errors.Wrap(err, "failed to update user")
+	// Create new user with the returned ID
+	newUser := &User{
+		ID:          &id,
+		Username:    user.Username,
+		ChatID:      user.ChatID,
+		City:        user.City,
+		Timezone:    user.Timezone,
+		MailingTime: user.MailingTime,
 	}
-	return nil
+
+	return newUser, nil
 }
 
 func (r *UserRepository) GetUsersByMailingTime(mailingTime time.Time) ([]*User, error) {
-	rows, err := r.db.Query("SELECT * FROM users WHERE mailing_time = ?", mailingTime)
+	rows, err := r.db.Query("SELECT * FROM users WHERE mailing_time = $1", mailingTime)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get users by mailing time")
 	}
@@ -75,4 +78,16 @@ func (r *UserRepository) GetUsersByMailingTime(mailingTime time.Time) ([]*User, 
 	}
 
 	return users, nil
+}
+
+func (r *UserRepository) UpdateUserCityAndTimezone(userID *int, city string, timezone string) error {
+	if userID == nil {
+		return errors.New("user ID is nil")
+	}
+	stmt := `UPDATE users SET city = $1, timezone = $2 WHERE id = $3`
+	_, err := r.db.Exec(stmt, city, timezone, *userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to update user city and timezone")
+	}
+	return nil
 }
