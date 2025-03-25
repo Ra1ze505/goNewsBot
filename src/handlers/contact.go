@@ -6,5 +6,5 @@ import (
 )
 
 func ContactHandle(c tele.Context) error {
-	return c.Send("По всем вопросам обращайтесь к @admin", keyboard.GetStartKeyboard())
+	return c.Send("По всем вопросам обращайтесь к @ra1zeee", keyboard.GetStartKeyboard())
 }
