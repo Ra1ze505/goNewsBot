@@ -11,3 +11,9 @@ CREATE TABLE users (
 CREATE INDEX idx_chat_id ON users (chat_id);
 CREATE INDEX idx_mailing_time ON users (mailing_time);
 
+CREATE TABLE rates (
+    date TIMESTAMP UNIQUE NOT NULL,
+    data JSONB NOT NULL
+);
+
+CREATE INDEX idx_date ON rates (date);

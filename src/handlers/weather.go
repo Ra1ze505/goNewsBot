@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/Ra1ze505/goNewsBot/src/keyboard"
+
 	tele "gopkg.in/telebot.v4"
 )
 
@@ -79,7 +81,6 @@ func WeatherHandle(context tele.Context) error {
 	if err != nil {
 		return err
 	}
-	context.Send(answer)
 
-	return fmt.Errorf("test err")
+	return context.Send(answer, keyboard.GetStartKeyboard())
 }

@@ -49,22 +49,27 @@ func main() {
 	weatherRepo := repository.NewWeatherRepository()
 	stateStorage := handlers.NewStateStorage()
 
+	rateRepo := repository.NewRateRepository(db)
+	rateService := repository.NewRateService(rateRepo)
+	rateService.StartRateFetcher()
+
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(userRepo))
-	addHandlers(bot, userRepo, weatherRepo, stateStorage)
+	addHandlers(bot, userRepo, weatherRepo, stateStorage, rateRepo)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, weatherRepo repository.WeatherRepositoryInterface, stateStorage *handlers.StateStorage) {
+func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, weatherRepo repository.WeatherRepositoryInterface, stateStorage *handlers.StateStorage, rateRepo repository.RateRepositoryInterface) {
 	// Start command
 	bot.Handle("/start", handlers.HelloHandle)
 
 	// Initialize handlers
 	changeCityHandler := handlers.NewChangeCityHandler(userRepo, weatherRepo, stateStorage)
+	rateHandler := handlers.NewRateHandler(rateRepo)
 
 	// Button handlers
 	bot.Handle(&keyboard.WeatherBtn, handlers.WeatherHandle)
-	bot.Handle(&keyboard.RateBtn, handlers.RateHandle)
+	bot.Handle(&keyboard.RateBtn, rateHandler.Handle)
 	bot.Handle(&keyboard.NewsBtn, handlers.NewsHandle)
 	bot.Handle(&keyboard.ChangeCityBtn, changeCityHandler.Handle)
 	bot.Handle(&keyboard.ChangeTimeBtn, handlers.ChangeTimeHandle)
