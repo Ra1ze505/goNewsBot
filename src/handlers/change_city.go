@@ -34,8 +34,8 @@ func (h *ChangeCityHandler) Handle(c tele.Context) error {
 	// Set state for user
 	h.stateStorage.SetState(user.ChatID, &UserState{ChangingCity: true})
 
-	// Send initial message
-	return c.Send(fmt.Sprintf("Ваш город сейчас: %s\nНапишите свой город", user.City), keyboard.GetStartKeyboard())
+	// Send initial message with city selection keyboard
+	return c.Send(fmt.Sprintf("Ваш город сейчас: %s\nВыберите город из списка или напишите свой", user.City), keyboard.GetCitySelectionKeyboard())
 }
 
 func (h *ChangeCityHandler) HandleCityInput(c tele.Context) error {
@@ -51,7 +51,7 @@ func (h *ChangeCityHandler) HandleCityInput(c tele.Context) error {
 		return nil
 	}
 
-	if c.Text() == "Отмена" {
+	if c.Text() == keyboard.CancelCityBtn.Text {
 		h.stateStorage.ClearState(user.ChatID)
 		return c.Send("Город не изменен", keyboard.GetStartKeyboard())
 	}
