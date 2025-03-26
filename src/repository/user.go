@@ -34,8 +34,8 @@ func NewUserRepository(db *sql.DB) UserRepositoryInterface {
 }
 
 func (r *UserRepository) CreateOrUpdateUser(user *User) (*User, error) {
-	// First, try to find existing user
 	var existingUser User
+
 	err := r.db.QueryRow(`
 		SELECT id, username, chat_id, city, timezone, mailing_time
 		FROM users
@@ -43,7 +43,6 @@ func (r *UserRepository) CreateOrUpdateUser(user *User) (*User, error) {
 	`, user.ChatID).Scan(&existingUser.ID, &existingUser.Username, &existingUser.ChatID, &existingUser.City, &existingUser.Timezone, &existingUser.MailingTime)
 
 	if err == sql.ErrNoRows {
-		// User doesn't exist, create new one
 		var id int
 		err = r.db.QueryRow(`
 			INSERT INTO users (username, chat_id, city, timezone, mailing_time)
@@ -69,7 +68,6 @@ func (r *UserRepository) CreateOrUpdateUser(user *User) (*User, error) {
 		return nil, errors.Wrap(err, "failed to check existing user")
 	}
 
-	// Update username only if it has changed
 	if existingUser.Username == nil || *existingUser.Username != *user.Username {
 		_, err = r.db.Exec(`
 			UPDATE users
