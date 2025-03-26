@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
+	"github.com/Ra1ze505/goNewsBot/src/repository"
 
 	tele "gopkg.in/telebot.v4"
 )
@@ -41,7 +42,7 @@ func buildAnswer(resp *WeatherResponse) (string, error) {
 	return fmt.Sprintf(template, resp.City, resp.Main.Temp, resp.Weather[0].Desc), nil
 }
 
-func buildQuery() url.URL {
+func buildQuery(city string) url.URL {
 	api_key := os.Getenv("WEATHER_API_KEY")
 	dst := url.URL{
 		Scheme: "https",
@@ -49,7 +50,7 @@ func buildQuery() url.URL {
 		Path:   "data/2.5/weather",
 	}
 	dst_query := dst.Query()
-	dst_query.Set("q", "moscow")
+	dst_query.Set("q", city)
 	dst_query.Set("lang", "ru")
 	dst_query.Set("units", "metric")
 	dst_query.Set("appid", api_key)
@@ -59,7 +60,13 @@ func buildQuery() url.URL {
 }
 
 func WeatherHandle(context tele.Context) error {
-	query := buildQuery()
+	user, ok := context.Get("user").(*repository.User)
+	if !ok {
+		context.Send("Что-то пошло не так, попробуйте позже", keyboard.GetStartKeyboard())
+		return fmt.Errorf("user not found in context")
+	}
+
+	query := buildQuery(user.City)
 
 	r, err := http.Get(query.String())
 	if err != nil {

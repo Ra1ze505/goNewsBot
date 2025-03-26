@@ -34,30 +34,55 @@ func NewUserRepository(db *sql.DB) UserRepositoryInterface {
 }
 
 func (r *UserRepository) CreateOrUpdateUser(user *User) (*User, error) {
-	var id int
+	// First, try to find existing user
+	var existingUser User
 	err := r.db.QueryRow(`
-		INSERT INTO users (username, chat_id, city, timezone, mailing_time)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (chat_id) DO UPDATE
-		SET username = EXCLUDED.username
-		RETURNING id
-	`, user.Username, user.ChatID, user.City, user.Timezone, user.MailingTime).Scan(&id)
+		SELECT id, username, chat_id, city, timezone, mailing_time
+		FROM users
+		WHERE chat_id = $1
+	`, user.ChatID).Scan(&existingUser.ID, &existingUser.Username, &existingUser.ChatID, &existingUser.City, &existingUser.Timezone, &existingUser.MailingTime)
+
+	if err == sql.ErrNoRows {
+		// User doesn't exist, create new one
+		var id int
+		err = r.db.QueryRow(`
+			INSERT INTO users (username, chat_id, city, timezone, mailing_time)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id
+		`, user.Username, user.ChatID, user.City, user.Timezone, user.MailingTime).Scan(&id)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create user")
+		}
+
+		return &User{
+			ID:          &id,
+			Username:    user.Username,
+			ChatID:      user.ChatID,
+			City:        user.City,
+			Timezone:    user.Timezone,
+			MailingTime: user.MailingTime,
+		}, nil
+	}
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create or update user")
+		return nil, errors.Wrap(err, "failed to check existing user")
 	}
 
-	// Create new user with the returned ID
-	newUser := &User{
-		ID:          &id,
-		Username:    user.Username,
-		ChatID:      user.ChatID,
-		City:        user.City,
-		Timezone:    user.Timezone,
-		MailingTime: user.MailingTime,
+	// Update username only if it has changed
+	if existingUser.Username == nil || *existingUser.Username != *user.Username {
+		_, err = r.db.Exec(`
+			UPDATE users
+			SET username = $1
+			WHERE chat_id = $2
+		`, user.Username, user.ChatID)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to update user")
+		}
 	}
 
-	return newUser, nil
+	return &existingUser, nil
 }
 
 func (r *UserRepository) GetUsersByMailingTime(mailingTime time.Time) ([]*User, error) {
