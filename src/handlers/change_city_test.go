@@ -32,7 +32,7 @@ func TestChangeCityHandler_Handle(t *testing.T) {
 
 	mockContext := mock_telebot.NewMockContext(ctrl)
 	mockContext.EXPECT().Get("user").Return(mockUser)
-	mockContext.EXPECT().Send("Ваш город сейчас: Москва\nНапишите свой город", keyboard.GetStartKeyboard())
+	mockContext.EXPECT().Send("Ваш город сейчас: Москва\nВыберите город из списка или напишите свой", keyboard.GetCitySelectionKeyboard())
 
 	err := handler.Handle(mockContext)
 	if err != nil {
