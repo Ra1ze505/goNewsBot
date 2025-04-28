@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	MessageBatchLimit = 10
+	MessageBatchLimit = 20
 )
 
 type MessageService struct {
@@ -178,7 +178,6 @@ func (s *MessageService) getChannelMessages(ctx context.Context, channel *tg.Cha
 					break
 				}
 
-				// Skip if we've already processed this message
 				if processedMessageIDs[message.ID] {
 					continue
 				}
@@ -198,22 +197,11 @@ func (s *MessageService) getChannelMessages(ctx context.Context, channel *tg.Cha
 			return allMessages, nil
 		}
 
-		// If we got less than the batch limit, we've reached the end
 		if len(channelMessages.Messages) < MessageBatchLimit {
 			log.Infof("Received less than %d messages, reached the end", MessageBatchLimit)
 			return allMessages, nil
 		}
 	}
-}
-
-func sessionFolder(phone string) string {
-	var out []rune
-	for _, r := range phone {
-		if r >= '0' && r <= '9' {
-			out = append(out, r)
-		}
-	}
-	return "phone-" + string(out)
 }
 
 func InitAndStartMessageService(ctx context.Context, db *sql.DB) error {
@@ -231,7 +219,7 @@ func InitAndStartMessageService(ctx context.Context, db *sql.DB) error {
 		return errors.New("no phone number")
 	}
 
-	sessionDir := filepath.Join("session", sessionFolder(phone))
+	sessionDir := config.SessionDir
 	waiter := floodwait.NewWaiter().WithCallback(func(ctx context.Context, wait floodwait.FloodWait) {
 		log.Infof("Got FLOOD_WAIT. Will retry after %v", wait.Duration)
 	})

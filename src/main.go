@@ -30,7 +30,6 @@ func main() {
 	log.Info("Start ...")
 	loadEnv()
 
-	// Initialize bot
 	pref := tele.Settings{
 		Token:  os.Getenv("BOT_TOKEN"),
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},

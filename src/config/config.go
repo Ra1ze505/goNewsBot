@@ -4,3 +4,5 @@ package config
 var Channels = []string{
 	"kontext_channel",
 }
+
+const SessionDir = "session/telegram-session"

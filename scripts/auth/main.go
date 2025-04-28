@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,43 +16,30 @@ import (
 	"github.com/gotd/td/telegram/auth"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
+
+	"github.com/Ra1ze505/goNewsBot/src/config"
 )
 
-func sessionFolder(phone string) string {
-	var out []rune
-	for _, r := range phone {
-		if r >= '0' && r <= '9' {
-			out = append(out, r)
-		}
-	}
-	return "phone-" + string(out)
-}
-
-func loadEnv() (string, int, string, error) {
+func loadEnv() (int, string, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
-		return "", 0, "", errors.Wrap(err, "load env")
-	}
-
-	phone := os.Getenv("TG_PHONE")
-	if phone == "" {
-		return "", 0, "", errors.New("no phone")
+		return 0, "", errors.Wrap(err, "load env")
 	}
 
 	appID, err := strconv.Atoi(os.Getenv("API_ID"))
 	if err != nil {
-		return "", 0, "", errors.Wrap(err, "parse app id")
+		return 0, "", errors.Wrap(err, "parse app id")
 	}
 
 	appHash := os.Getenv("API_HASH")
 	if appHash == "" {
-		return "", 0, "", errors.New("no app hash")
+		return 0, "", errors.New("no app hash")
 	}
 
-	return phone, appID, appHash, nil
+	return appID, appHash, nil
 }
 
-func initClient(phone string, appID int, appHash string) (*telegram.Client, *floodwait.Waiter, error) {
-	sessionDir := filepath.Join("session", sessionFolder(phone))
+func initClient(appID int, appHash string) (*telegram.Client, *floodwait.Waiter, error) {
+	sessionDir := config.SessionDir
 	if err := os.MkdirAll(sessionDir, 0700); err != nil {
 		return nil, nil, err
 	}
@@ -75,17 +63,24 @@ func initClient(phone string, appID int, appHash string) (*telegram.Client, *flo
 }
 
 func run(ctx context.Context) error {
-	phone, appID, appHash, err := loadEnv()
+	phone := flag.String("phone", "", "Phone number for authentication")
+	flag.Parse()
+
+	if *phone == "" {
+		return errors.New("phone number is required, use --phone flag")
+	}
+
+	appID, appHash, err := loadEnv()
 	if err != nil {
 		return err
 	}
 
-	client, waiter, err := initClient(phone, appID, appHash)
+	client, waiter, err := initClient(appID, appHash)
 	if err != nil {
 		return err
 	}
 
-	flow := auth.NewFlow(examples.Terminal{PhoneNumber: phone}, auth.SendCodeOptions{})
+	flow := auth.NewFlow(examples.Terminal{PhoneNumber: *phone}, auth.SendCodeOptions{})
 
 	return waiter.Run(ctx, func(ctx context.Context) error {
 		if err := client.Run(ctx, func(ctx context.Context) error {
