@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"time"
@@ -28,6 +29,8 @@ func loadEnv() {
 func main() {
 	log.Info("Start ...")
 	loadEnv()
+
+	// Initialize bot
 	pref := tele.Settings{
 		Token:  os.Getenv("BOT_TOKEN"),
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -52,6 +55,12 @@ func main() {
 	rateRepo := repository.NewRateRepository(db)
 	rateService := repository.NewRateService(rateRepo)
 	rateService.StartRateFetcher()
+
+	// Initialize and start message service
+	ctx := context.Background()
+	if err := repository.InitAndStartMessageService(ctx, db); err != nil {
+		log.Fatal(errors.Wrap(err, "failed to initialize message service"))
+	}
 
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(userRepo))

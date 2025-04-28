@@ -2,20 +2,17 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/examples"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
-	"github.com/gotd/td/tg"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -28,18 +25,6 @@ func sessionFolder(phone string) string {
 		}
 	}
 	return "phone-" + string(out)
-}
-
-func parseFlags() (string, error) {
-	var channelName string
-	flag.StringVar(&channelName, "channel", "", "Channel name to get messages from")
-	flag.Parse()
-
-	if channelName == "" {
-		return "", errors.New("channel name is required")
-	}
-
-	return channelName, nil
 }
 
 func loadEnv() (string, int, string, error) {
@@ -89,61 +74,7 @@ func initClient(phone string, appID int, appHash string) (*telegram.Client, *flo
 	return client, waiter, nil
 }
 
-func getChannel(ctx context.Context, api *tg.Client, username string) (*tg.Channel, error) {
-	resolved, err := api.ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{
-		Username: username,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "resolve username")
-	}
-
-	channel, ok := resolved.Chats[0].(*tg.Channel)
-	if !ok {
-		return nil, errors.New("resolved peer is not a channel")
-	}
-
-	return channel, nil
-}
-
-func getChannelMessages(ctx context.Context, api *tg.Client, channel *tg.Channel) ([]*tg.Message, error) {
-	oneDayAgo := time.Now().Add(-24 * time.Hour)
-	messages, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
-		Peer: &tg.InputPeerChannel{
-			ChannelID:  channel.ID,
-			AccessHash: channel.AccessHash,
-		},
-		OffsetID:   0,
-		OffsetDate: int(oneDayAgo.Unix()),
-		AddOffset:  0,
-		Limit:      100,
-		MaxID:      0,
-		MinID:      0,
-		Hash:       0,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "get messages")
-	}
-
-	switch m := messages.(type) {
-	case *tg.MessagesChannelMessages:
-		var result []*tg.Message
-		for _, msg := range m.Messages {
-			if message, ok := msg.(*tg.Message); ok {
-				result = append(result, message)
-			}
-		}
-		return result, nil
-	default:
-		return nil, errors.Errorf("unexpected messages response type: %T", messages)
-	}
-}
-
 func run(ctx context.Context) error {
-	channelName, err := parseFlags()
-	if err != nil {
-		return err
-	}
-
 	phone, appID, appHash, err := loadEnv()
 	if err != nil {
 		return err
@@ -154,7 +85,6 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	api := client.API()
 	flow := auth.NewFlow(examples.Terminal{PhoneNumber: phone}, auth.SendCodeOptions{})
 
 	return waiter.Run(ctx, func(ctx context.Context) error {
@@ -162,26 +92,7 @@ func run(ctx context.Context) error {
 			if err := client.Auth().IfNecessary(ctx, flow); err != nil {
 				return errors.Wrap(err, "auth")
 			}
-
-			channel, err := getChannel(ctx, api, channelName)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("Found channel: %s\n", channel.Title)
-
-			messages, err := getChannelMessages(ctx, api, channel)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("\nMessages from the last 24 hours:\n")
-			fmt.Println("============================")
-			for _, message := range messages {
-				msgTime := time.Unix(int64(message.Date), 0)
-				fmt.Printf("[%s] %s\n", msgTime.Format("15:04:05"), message.Message)
-			}
-
+			fmt.Println("Successfully authenticated and saved session")
 			return nil
 		}); err != nil {
 			return errors.Wrap(err, "run")
