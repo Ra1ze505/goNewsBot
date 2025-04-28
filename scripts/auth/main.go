@@ -30,7 +30,6 @@ func sessionFolder(phone string) string {
 	return "phone-" + string(out)
 }
 
-// parseFlags parses command line flags
 func parseFlags() (string, error) {
 	var channelName string
 	flag.StringVar(&channelName, "channel", "", "Channel name to get messages from")
@@ -43,7 +42,6 @@ func parseFlags() (string, error) {
 	return channelName, nil
 }
 
-// loadEnv loads environment variables from .env file
 func loadEnv() (string, int, string, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return "", 0, "", errors.Wrap(err, "load env")
@@ -67,7 +65,6 @@ func loadEnv() (string, int, string, error) {
 	return phone, appID, appHash, nil
 }
 
-// initClient initializes Telegram client with the given parameters
 func initClient(phone string, appID int, appHash string) (*telegram.Client, *floodwait.Waiter, error) {
 	sessionDir := filepath.Join("session", sessionFolder(phone))
 	if err := os.MkdirAll(sessionDir, 0700); err != nil {
@@ -92,7 +89,6 @@ func initClient(phone string, appID int, appHash string) (*telegram.Client, *flo
 	return client, waiter, nil
 }
 
-// getChannel resolves a channel by its username
 func getChannel(ctx context.Context, api *tg.Client, username string) (*tg.Channel, error) {
 	resolved, err := api.ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{
 		Username: username,
@@ -109,7 +105,6 @@ func getChannel(ctx context.Context, api *tg.Client, username string) (*tg.Chann
 	return channel, nil
 }
 
-// getChannelMessages gets messages from a channel for the last 24 hours
 func getChannelMessages(ctx context.Context, api *tg.Client, channel *tg.Channel) ([]*tg.Message, error) {
 	oneDayAgo := time.Now().Add(-24 * time.Hour)
 	messages, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
@@ -144,19 +139,16 @@ func getChannelMessages(ctx context.Context, api *tg.Client, channel *tg.Channel
 }
 
 func run(ctx context.Context) error {
-	// Parse command line flags
 	channelName, err := parseFlags()
 	if err != nil {
 		return err
 	}
 
-	// Load environment variables
 	phone, appID, appHash, err := loadEnv()
 	if err != nil {
 		return err
 	}
 
-	// Initialize Telegram client
 	client, waiter, err := initClient(phone, appID, appHash)
 	if err != nil {
 		return err
@@ -165,15 +157,12 @@ func run(ctx context.Context) error {
 	api := client.API()
 	flow := auth.NewFlow(examples.Terminal{PhoneNumber: phone}, auth.SendCodeOptions{})
 
-	// Run client and get dialogs
 	return waiter.Run(ctx, func(ctx context.Context) error {
 		if err := client.Run(ctx, func(ctx context.Context) error {
-			// Perform auth if no session is available
 			if err := client.Auth().IfNecessary(ctx, flow); err != nil {
 				return errors.Wrap(err, "auth")
 			}
 
-			// Get channel
 			channel, err := getChannel(ctx, api, channelName)
 			if err != nil {
 				return err
@@ -181,13 +170,11 @@ func run(ctx context.Context) error {
 
 			fmt.Printf("Found channel: %s\n", channel.Title)
 
-			// Get messages
 			messages, err := getChannelMessages(ctx, api, channel)
 			if err != nil {
 				return err
 			}
 
-			// Print messages
 			fmt.Printf("\nMessages from the last 24 hours:\n")
 			fmt.Println("============================")
 			for _, message := range messages {
