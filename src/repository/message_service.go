@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Ra1ze505/goNewsBot/src/config"
+
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
@@ -29,12 +31,10 @@ type MessageService struct {
 
 func NewMessageService(client *telegram.Client, repo MessageRepositoryInterface) *MessageService {
 	return &MessageService{
-		client: client,
-		api:    client.API(),
-		repo:   repo,
-		channels: []string{
-			"any_channel",
-		},
+		client:   client,
+		api:      client.API(),
+		repo:     repo,
+		channels: config.Channels,
 	}
 }
 
