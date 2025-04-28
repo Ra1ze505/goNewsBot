@@ -55,7 +55,6 @@ func main() {
 	rateService := repository.NewRateService(rateRepo)
 	rateService.StartRateFetcher()
 
-	// Initialize and start message service
 	ctx := context.Background()
 	if err := repository.InitAndStartMessageService(ctx, db); err != nil {
 		log.Fatal(errors.Wrap(err, "failed to initialize message service"))
