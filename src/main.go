@@ -57,8 +57,17 @@ func main() {
 
 	ctx := context.Background()
 	if err := repository.InitAndStartMessageService(ctx, db); err != nil {
-		log.Fatal(errors.Wrap(err, "failed to initialize message service"))
+		log.Fatal(errors.Wrap(err, "Failed to initialize message service"))
 	}
+
+	mlService, err := repository.NewMLService()
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "Failed to initialize ML service"))
+	}
+
+	summaryRepo := repository.NewSummaryRepository(db)
+	summaryService := repository.NewSummaryService(summaryRepo, mlService)
+	summaryService.StartSummaryFetcher(ctx)
 
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(userRepo))

@@ -28,3 +28,15 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(channel_id, message_id)
 ); 
+
+CREATE INDEX IF NOT EXISTS idx_messages_channel_date ON messages(channel_id, DATE(message_date));
+
+CREATE TABLE IF NOT EXISTS summaries (
+    id SERIAL PRIMARY KEY,
+    channel_id BIGINT NOT NULL,
+    summary TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_summaries_channel_date ON summaries(channel_id, DATE(created_at));
+CREATE INDEX IF NOT EXISTS idx_summaries_channel ON summaries(channel_id); 

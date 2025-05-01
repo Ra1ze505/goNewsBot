@@ -1,0 +1,98 @@
+package repository
+
+//go:generate mockgen -source=summary_repository.go -destination=../mocks/repository/summary_repository_mock.go
+
+import (
+	"database/sql"
+	"time"
+)
+
+type Summary struct {
+	ID        int64
+	ChannelID int64
+	Summary   string
+	CreatedAt time.Time
+}
+
+type SummaryRepositoryInterface interface {
+	SaveSummary(summary *Summary) error
+	HasSummaryToday(channelID int64) (bool, error)
+	GetMessagesForLastDay(channelID int64) ([]string, error)
+	GetChannelID(username string) (int64, error)
+}
+
+type SummaryRepository struct {
+	db *sql.DB
+}
+
+func NewSummaryRepository(db *sql.DB) SummaryRepositoryInterface {
+	return &SummaryRepository{db: db}
+}
+
+func (r *SummaryRepository) SaveSummary(summary *Summary) error {
+	query := `
+		INSERT INTO summaries (channel_id, summary, created_at)
+		VALUES ($1, $2, $3)
+	`
+	_, err := r.db.Exec(query,
+		summary.ChannelID,
+		summary.Summary,
+		summary.CreatedAt,
+	)
+	return err
+}
+
+func (r *SummaryRepository) HasSummaryToday(channelID int64) (bool, error) {
+	var count int
+	query := `
+		SELECT COUNT(*) 
+		FROM summaries 
+		WHERE channel_id = $1 
+		AND DATE(created_at) = CURRENT_DATE
+	`
+	err := r.db.QueryRow(query, channelID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *SummaryRepository) GetMessagesForLastDay(channelID int64) ([]string, error) {
+	query := `
+		SELECT message_text 
+		FROM messages 
+		WHERE channel_id = $1 
+		AND message_date >= NOW() - INTERVAL '1 day'
+		ORDER BY message_date ASC
+	`
+	rows, err := r.db.Query(query, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []string
+	for rows.Next() {
+		var text string
+		if err := rows.Scan(&text); err != nil {
+			return nil, err
+		}
+		messages = append(messages, text)
+	}
+	return messages, rows.Err()
+}
+
+func (r *SummaryRepository) GetChannelID(username string) (int64, error) {
+	var channelID int64
+	query := `
+		SELECT DISTINCT channel_id 
+		FROM messages 
+		WHERE channel_username = $1 
+		LIMIT 1
+	`
+	err := r.db.QueryRow(query, username).Scan(&channelID)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return channelID, err
+}
