@@ -1,6 +1,6 @@
 package repository
 
-//go:generate mockgen -source=ml_service.go -destination=../mocks/repository/ml_service_mock.go
+//go:generate mockgen -source=ml_repository.go -destination=../mocks/repository/ml_repository_mock.go
 
 import (
 	"bytes"
@@ -24,11 +24,11 @@ const (
 		"4000 символов максимум."
 )
 
-type MLServiceInterface interface {
+type MLRepositoryInterface interface {
 	SummarizeMessages(messages []string) (string, error)
 }
 
-type MLService struct {
+type MLRepository struct {
 	apiToken string
 	client   *http.Client
 }
@@ -51,19 +51,19 @@ type OpenRouterResponse struct {
 	} `json:"choices"`
 }
 
-func NewMLService() (*MLService, error) {
+func NewMLRepository() (*MLRepository, error) {
 	apiToken := os.Getenv("OPENROUTER_API_TOKEN")
 	if apiToken == "" {
 		return nil, fmt.Errorf("OPENROUTER_API_TOKEN environment variable must be set")
 	}
 
-	return &MLService{
+	return &MLRepository{
 		apiToken: apiToken,
 		client:   &http.Client{Timeout: 250 * time.Second},
 	}, nil
 }
 
-func (s *MLService) SummarizeMessages(messages []string) (string, error) {
+func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 	// Combine all messages into one text
 	combinedText := ""
 	for _, msg := range messages {
@@ -95,10 +95,10 @@ func (s *MLService) SummarizeMessages(messages []string) (string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+s.apiToken)
+	req.Header.Set("Authorization", "Bearer "+r.apiToken)
 
 	log.Info("Sending request to OpenRouter")
-	resp, err := s.client.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("error making request: %w", err)
 	}

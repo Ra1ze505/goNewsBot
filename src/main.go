@@ -10,6 +10,7 @@ import (
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	"github.com/Ra1ze505/goNewsBot/src/middleware"
 	"github.com/Ra1ze505/goNewsBot/src/repository"
+	"github.com/Ra1ze505/goNewsBot/src/service"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -52,21 +53,21 @@ func main() {
 	stateStorage := handlers.NewStateStorage()
 
 	rateRepo := repository.NewRateRepository(db)
-	rateService := repository.NewRateService(rateRepo)
+	rateService := service.NewRateService(rateRepo)
 	rateService.StartRateFetcher()
 
 	ctx := context.Background()
-	if err := repository.InitAndStartMessageService(ctx, db); err != nil {
+	if err := service.InitAndStartMessageService(ctx, db); err != nil {
 		log.Fatal(errors.Wrap(err, "Failed to initialize message service"))
 	}
 
-	mlService, err := repository.NewMLService()
+	mlRepo, err := repository.NewMLRepository()
 	if err != nil {
-		log.Fatal(errors.Wrap(err, "Failed to initialize ML service"))
+		log.Fatal(errors.Wrap(err, "Failed to initialize ML repository"))
 	}
 
 	summaryRepo := repository.NewSummaryRepository(db)
-	summaryService := repository.NewSummaryService(summaryRepo, mlService)
+	summaryService := service.NewSummaryService(summaryRepo, mlRepo)
 	summaryService.StartSummaryFetcher(ctx)
 
 	bot.Use(middleware.MessageLogger())

@@ -1,4 +1,4 @@
-package repository
+package service
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Ra1ze505/goNewsBot/src/config"
+	"github.com/Ra1ze505/goNewsBot/src/repository"
 
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/telegram"
@@ -25,11 +26,11 @@ const (
 type MessageService struct {
 	client   *telegram.Client
 	api      *tg.Client
-	repo     MessageRepositoryInterface
+	repo     repository.MessageRepositoryInterface
 	channels []string
 }
 
-func NewMessageService(client *telegram.Client, repo MessageRepositoryInterface) *MessageService {
+func NewMessageService(client *telegram.Client, repo repository.MessageRepositoryInterface) *MessageService {
 	return &MessageService{
 		client:   client,
 		api:      client.API(),
@@ -83,7 +84,7 @@ func (s *MessageService) fetchMessages(ctx context.Context) error {
 		log.Infof("Fetched %d messages for channel: %s", len(messages), channelUsername)
 
 		for _, msg := range messages {
-			message := &Message{
+			message := &repository.Message{
 				ChannelID:       channel.ID,
 				MessageID:       msg.ID,
 				ChannelUsername: channelUsername,
@@ -234,7 +235,7 @@ func InitAndStartMessageService(ctx context.Context, db *sql.DB) error {
 		},
 	})
 
-	messageRepo := NewMessageRepository(db)
+	messageRepo := repository.NewMessageRepository(db)
 	messageService := NewMessageService(client, messageRepo)
 
 	go func() {

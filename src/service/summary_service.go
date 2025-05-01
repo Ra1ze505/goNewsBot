@@ -1,22 +1,23 @@
-package repository
+package service
 
 import (
 	"context"
 	"time"
 
 	"github.com/Ra1ze505/goNewsBot/src/config"
+	"github.com/Ra1ze505/goNewsBot/src/repository"
 	log "github.com/sirupsen/logrus"
 )
 
 type SummaryService struct {
-	summaryRepo SummaryRepositoryInterface
-	mlService   *MLService
+	summaryRepo repository.SummaryRepositoryInterface
+	mlRepo      repository.MLRepositoryInterface
 }
 
-func NewSummaryService(summaryRepo SummaryRepositoryInterface, mlService *MLService) *SummaryService {
+func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo repository.MLRepositoryInterface) *SummaryService {
 	return &SummaryService{
 		summaryRepo: summaryRepo,
-		mlService:   mlService,
+		mlRepo:      mlRepo,
 	}
 }
 
@@ -77,12 +78,12 @@ func (s *SummaryService) ProcessChannelSummaries(channelUsername string) error {
 		return nil
 	}
 
-	summary, err := s.mlService.SummarizeMessages(messages)
+	summary, err := s.mlRepo.SummarizeMessages(messages)
 	if err != nil {
 		return err
 	}
 
-	return s.summaryRepo.SaveSummary(&Summary{
+	return s.summaryRepo.SaveSummary(&repository.Summary{
 		ChannelID: channelID,
 		Summary:   summary,
 		CreatedAt: time.Now(),

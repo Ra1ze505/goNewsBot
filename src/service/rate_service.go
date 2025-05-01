@@ -1,4 +1,4 @@
-package repository
+package service
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Ra1ze505/goNewsBot/src/repository"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,10 +16,10 @@ type CBRResponse struct {
 }
 
 type RateService struct {
-	repo *RateRepository
+	repo *repository.RateRepository
 }
 
-func NewRateService(repo *RateRepository) *RateService {
+func NewRateService(repo *repository.RateRepository) *RateService {
 	return &RateService{repo: repo}
 }
 
@@ -44,7 +45,7 @@ func (s *RateService) FetchAndSaveRates() error {
 		return err
 	}
 
-	rate := &Rate{
+	rate := &repository.Rate{
 		Date: timestamp,
 		Data: cbrResp.Valute,
 	}
