@@ -28,7 +28,6 @@ func TestChangePrimeChannelHandler_Handle(t *testing.T) {
 
 	mockContext := mock_telebot.NewMockContext(ctrl)
 
-	// Setup config for test
 	config.Channels = map[int64]string{
 		1: "Test Channel 1",
 		2: "Test Channel 2",
@@ -62,7 +61,6 @@ func TestChangePrimeChannelHandler_HandleChannelSelection_Success(t *testing.T) 
 
 	mockContext := mock_telebot.NewMockContext(ctrl)
 
-	// Setup config for test
 	config.Channels = map[int64]string{
 		1: "Test Channel 1",
 		2: "Test Channel 2",
