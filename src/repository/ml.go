@@ -96,7 +96,7 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 				Content: combinedText,
 			},
 		},
-		MaxTokens: 500,
+		MaxTokens: 700,
 	}
 
 	jsonData, err := json.Marshal(reqBody)
