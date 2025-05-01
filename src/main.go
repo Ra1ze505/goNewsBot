@@ -71,25 +71,25 @@ func main() {
 	summaryService := service.NewSummaryService(summaryRepo, mlRepo, messageService.MessagesFetched)
 	summaryService.StartSummaryFetcher(ctx)
 
-	log.Info("Bot started")
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(userRepo))
-	addHandlers(bot, userRepo, weatherRepo, stateStorage, rateRepo)
+	addHandlers(bot, userRepo, weatherRepo, stateStorage, rateRepo, summaryRepo)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, weatherRepo repository.WeatherRepositoryInterface, stateStorage *handlers.StateStorage, rateRepo repository.RateRepositoryInterface) {
+func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, weatherRepo repository.WeatherRepositoryInterface, stateStorage *handlers.StateStorage, rateRepo repository.RateRepositoryInterface, summaryRepo repository.SummaryRepositoryInterface) {
 	// Start command
 	bot.Handle("/start", handlers.HelloHandle)
 
 	// Initialize handlers
 	changeCityHandler := handlers.NewChangeCityHandler(userRepo, weatherRepo, stateStorage)
 	rateHandler := handlers.NewRateHandler(rateRepo)
+	newsHandler := handlers.NewNewsHandler(summaryRepo)
 
 	// Button handlers
 	bot.Handle(&keyboard.WeatherBtn, handlers.WeatherHandle)
 	bot.Handle(&keyboard.RateBtn, rateHandler.Handle)
-	bot.Handle(&keyboard.NewsBtn, handlers.NewsHandle)
+	bot.Handle(&keyboard.NewsBtn, newsHandler.Handle)
 	bot.Handle(&keyboard.ChangeCityBtn, changeCityHandler.Handle)
 	bot.Handle(&keyboard.ChangeTimeBtn, handlers.ChangeTimeHandle)
 	bot.Handle(&keyboard.AboutBtn, handlers.AboutHandle)

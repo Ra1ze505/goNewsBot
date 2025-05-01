@@ -19,6 +19,7 @@ type SummaryRepositoryInterface interface {
 	HasSummaryToday(channelID int64) (bool, error)
 	GetMessagesForLastDay(channelID int64) ([]string, error)
 	GetChannelID(username string) (int64, error)
+	GetLatestSummary() (*Summary, error)
 }
 
 type SummaryRepository struct {
@@ -95,4 +96,27 @@ func (r *SummaryRepository) GetChannelID(username string) (int64, error) {
 		return 0, nil
 	}
 	return channelID, err
+}
+
+func (r *SummaryRepository) GetLatestSummary() (*Summary, error) {
+	query := `
+		SELECT id, channel_id, summary, created_at
+		FROM summaries
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	summary := &Summary{}
+	err := r.db.QueryRow(query).Scan(
+		&summary.ID,
+		&summary.ChannelID,
+		&summary.Summary,
+		&summary.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return summary, nil
 }
