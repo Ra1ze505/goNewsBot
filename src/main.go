@@ -57,7 +57,8 @@ func main() {
 	rateService.StartRateFetcher()
 
 	ctx := context.Background()
-	if err := service.InitAndStartMessageService(ctx, db); err != nil {
+	messageService, err := service.InitAndStartMessageService(ctx, db)
+	if err != nil {
 		log.Fatal(errors.Wrap(err, "Failed to initialize message service"))
 	}
 
@@ -67,7 +68,7 @@ func main() {
 	}
 
 	summaryRepo := repository.NewSummaryRepository(db)
-	summaryService := service.NewSummaryService(summaryRepo, mlRepo)
+	summaryService := service.NewSummaryService(summaryRepo, mlRepo, messageService.MessagesFetched)
 	summaryService.StartSummaryFetcher(ctx)
 
 	bot.Use(middleware.MessageLogger())

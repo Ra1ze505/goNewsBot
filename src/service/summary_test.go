@@ -17,7 +17,8 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
 	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
-	service := NewSummaryService(summaryRepo, mlRepo)
+	messagesFetched := make(chan struct{})
+	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched)
 
 	tests := []struct {
 		name            string
@@ -126,21 +127,24 @@ func TestSummaryService_StartSummaryFetcher(t *testing.T) {
 
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
 	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
-	service := NewSummaryService(summaryRepo, mlRepo)
+	messagesFetched := make(chan struct{})
+	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// Mock the processAllChannels call that happens on startup
-	summaryRepo.EXPECT().GetChannelID(gomock.Any()).Return(int64(123), nil)
-	summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
-	summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1"}, nil)
-	mlRepo.EXPECT().SummarizeMessages([]string{"message1"}).Return("summary", nil)
-	summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(nil)
+	summaryRepo.EXPECT().GetChannelID(gomock.Any()).Return(int64(123), nil).Times(2)
+	summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil).Times(2)
+	summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1"}, nil).Times(2)
+	mlRepo.EXPECT().SummarizeMessages([]string{"message1"}).Return("summary", nil).Times(2)
+	summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(nil).Times(2)
 
-	// Start the fetcher in a goroutine
 	go service.StartSummaryFetcher(ctx)
 
-	// Wait for the context to be done
+	// Send a message fetched signal
+	go func() {
+		messagesFetched <- struct{}{}
+	}()
+
 	<-ctx.Done()
 }

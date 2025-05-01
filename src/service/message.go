@@ -28,14 +28,17 @@ type MessageService struct {
 	api      *tg.Client
 	repo     repository.MessageRepositoryInterface
 	channels []string
+	// Channel to signal when messages are fetched
+	MessagesFetched chan struct{}
 }
 
 func NewMessageService(client *telegram.Client, repo repository.MessageRepositoryInterface) *MessageService {
 	return &MessageService{
-		client:   client,
-		api:      client.API(),
-		repo:     repo,
-		channels: config.Channels,
+		client:          client,
+		api:             client.API(),
+		repo:            repo,
+		channels:        config.Channels,
+		MessagesFetched: make(chan struct{}),
 	}
 }
 
@@ -45,6 +48,9 @@ func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 
 	if err := s.fetchMessages(ctx); err != nil {
 		log.Errorf("Error fetching messages on startup: %v", err)
+	} else {
+		// Signal that messages were fetched successfully
+		s.MessagesFetched <- struct{}{}
 	}
 
 	for {
@@ -54,6 +60,9 @@ func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 		case <-ticker.C:
 			if err := s.fetchMessages(ctx); err != nil {
 				log.Errorf("Error fetching messages: %v", err)
+			} else {
+				// Signal that messages were fetched successfully
+				s.MessagesFetched <- struct{}{}
 			}
 		}
 	}
@@ -205,19 +214,19 @@ func (s *MessageService) getChannelMessages(ctx context.Context, channel *tg.Cha
 	}
 }
 
-func InitAndStartMessageService(ctx context.Context, db *sql.DB) error {
+func InitAndStartMessageService(ctx context.Context, db *sql.DB) (*MessageService, error) {
 	appID, err := strconv.Atoi(os.Getenv("API_ID"))
 	if err != nil {
-		return errors.Wrap(err, "parse app id")
+		return nil, errors.Wrap(err, "parse app id")
 	}
 	appHash := os.Getenv("API_HASH")
 	if appHash == "" {
-		return errors.New("no app hash")
+		return nil, errors.New("no app hash")
 	}
 
 	phone := os.Getenv("TG_PHONE")
 	if phone == "" {
-		return errors.New("no phone number")
+		return nil, errors.New("no phone number")
 	}
 
 	sessionDir := config.SessionDir
@@ -252,5 +261,5 @@ func InitAndStartMessageService(ctx context.Context, db *sql.DB) error {
 		}
 	}()
 
-	return nil
+	return messageService, nil
 }

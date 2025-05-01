@@ -12,19 +12,19 @@ import (
 type SummaryService struct {
 	summaryRepo repository.SummaryRepositoryInterface
 	mlRepo      repository.MLRepositoryInterface
+	// Channel to receive signals from message service
+	messagesFetched <-chan struct{}
 }
 
-func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo repository.MLRepositoryInterface) *SummaryService {
+func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo repository.MLRepositoryInterface, messagesFetched <-chan struct{}) *SummaryService {
 	return &SummaryService{
-		summaryRepo: summaryRepo,
-		mlRepo:      mlRepo,
+		summaryRepo:     summaryRepo,
+		mlRepo:          mlRepo,
+		messagesFetched: messagesFetched,
 	}
 }
 
 func (s *SummaryService) StartSummaryFetcher(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
 	if err := s.processAllChannels(); err != nil {
 		log.Errorf("Error processing summaries on startup: %v", err)
 	}
@@ -33,7 +33,7 @@ func (s *SummaryService) StartSummaryFetcher(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-s.messagesFetched:
 			if err := s.processAllChannels(); err != nil {
 				log.Errorf("Error processing summaries: %v", err)
 			}
