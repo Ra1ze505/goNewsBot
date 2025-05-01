@@ -25,6 +25,10 @@ func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo
 }
 
 func (s *SummaryService) StartSummaryFetcher(ctx context.Context) {
+	go s.startSummaryFetcher(ctx)
+}
+
+func (s *SummaryService) startSummaryFetcher(ctx context.Context) {
 	if err := s.processAllChannels(); err != nil {
 		log.Errorf("Error processing summaries on startup: %v", err)
 	}

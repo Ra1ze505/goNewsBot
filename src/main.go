@@ -71,6 +71,7 @@ func main() {
 	summaryService := service.NewSummaryService(summaryRepo, mlRepo, messageService.MessagesFetched)
 	summaryService.StartSummaryFetcher(ctx)
 
+	log.Info("Bot started")
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(userRepo))
 	addHandlers(bot, userRepo, weatherRepo, stateStorage, rateRepo)
