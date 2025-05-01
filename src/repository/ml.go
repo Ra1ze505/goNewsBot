@@ -70,12 +70,9 @@ func NewMLRepository() (*MLRepository, error) {
 }
 
 func cleanResponse(content string) string {
-	// Remove markdown code blocks and their delimiters
 	content = regexp.MustCompile("```[a-zA-Z]*\n").ReplaceAllString(content, "")
 	content = regexp.MustCompile("```").ReplaceAllString(content, "")
-	// Remove horizontal lines
 	content = regexp.MustCompile("---\n").ReplaceAllString(content, "")
-	// Trim whitespace
 	content = strings.TrimSpace(content)
 	return content
 }
