@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,6 +84,28 @@ func TestNewsHandler_Handle(t *testing.T) {
 			expectedErr: errors.New("user not found in context"),
 			setupMocks: func() {
 				mockContext.EXPECT().Get("user").Return(nil)
+			},
+		},
+		{
+			name: "Summary too long",
+			summary: &repository.Summary{
+				ID:        1,
+				ChannelID: 123,
+				Summary:   strings.Repeat("a", 4097),
+				CreatedAt: time.Now(),
+			},
+			summaryErr:  nil,
+			expectedMsg: "Суммарная длина новостей превышает 4096 символов. Воспользуйтесь кнопкой 'Написать нам' и сообщите о проблеме.",
+			expectedErr: nil,
+			setupMocks: func() {
+				mockContext.EXPECT().Get("user").Return(testUser)
+				mockSummaryRepo.EXPECT().GetLatestSummary(testUser.PreferredChannelID).Return(&repository.Summary{
+					ID:        1,
+					ChannelID: 123,
+					Summary:   strings.Repeat("a", 4097),
+					CreatedAt: time.Now(),
+				}, nil)
+				mockContext.EXPECT().Send("Суммарная длина новостей превышает 4096 символов. Воспользуйтесь кнопкой 'Написать нам' и сообщите о проблеме.", keyboard.GetStartKeyboard()).Return(nil)
 			},
 		},
 	}
