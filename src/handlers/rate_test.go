@@ -1,8 +1,9 @@
-package handlers
+package handlers_test
 
 import (
 	"testing"
 
+	handlers "github.com/Ra1ze505/goNewsBot/src/handlers"
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	mock_repository "github.com/Ra1ze505/goNewsBot/src/mocks/repository"
 	mock_telebot "github.com/Ra1ze505/goNewsBot/src/mocks/telebot"
@@ -19,7 +20,7 @@ func TestRateHandler_Handle(t *testing.T) {
 
 		mockRepo := mock_repository.NewMockRateRepositoryInterface(ctrl)
 		mockContext := mock_telebot.NewMockContext(ctrl)
-		handler := NewRateHandler(mockRepo)
+		handler := handlers.NewRateHandler(mockRepo)
 
 		rates := &repository.Rates{
 			USD: repository.CurrencyRate{
@@ -50,7 +51,7 @@ func TestRateHandler_Handle(t *testing.T) {
 
 		mockRepo := mock_repository.NewMockRateRepositoryInterface(ctrl)
 		mockContext := mock_telebot.NewMockContext(ctrl)
-		handler := NewRateHandler(mockRepo)
+		handler := handlers.NewRateHandler(mockRepo)
 
 		errorMessage := "Извините, не удалось получить текущий курс валют. Попробуйте позже."
 		mockRepo.EXPECT().GetRates().Return(nil, assert.AnError)
