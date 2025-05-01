@@ -55,5 +55,5 @@ func (r *MessageRepository) GetLastMessageTime(channelID int64) (time.Time, erro
 	if err == sql.ErrNoRows {
 		return time.Time{}, nil
 	}
-	return messageDate, err
+	return messageDate.UTC(), err
 }

@@ -95,7 +95,7 @@ func (s *MessageService) fetchMessages(ctx context.Context) error {
 				ChannelID:   channel.ID,
 				MessageID:   msg.ID,
 				MessageText: msg.Message,
-				MessageDate: time.Unix(int64(msg.Date), 0),
+				MessageDate: time.Unix(int64(msg.Date), 0).UTC(),
 			}
 
 			if err := s.repo.SaveMessage(message); err != nil {
@@ -186,7 +186,7 @@ func (s *MessageService) getChannelMessages(ctx context.Context, channel *tg.Cha
 			if message, ok := msg.(*tg.Message); ok {
 				offsetID = message.ID
 
-				messageTime := time.Unix(int64(message.Date), 0)
+				messageTime := time.Unix(int64(message.Date), 0).UTC()
 
 				if message.Date < oneDayAgoTimestamp {
 					shouldStop = true
