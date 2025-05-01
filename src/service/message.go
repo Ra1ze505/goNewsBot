@@ -24,10 +24,9 @@ const (
 )
 
 type MessageService struct {
-	client   *telegram.Client
-	api      *tg.Client
-	repo     repository.MessageRepositoryInterface
-	channels []int64
+	client *telegram.Client
+	api    *tg.Client
+	repo   repository.MessageRepositoryInterface
 	// Channel to signal when messages are fetched
 	MessagesFetched chan struct{}
 }
@@ -37,7 +36,6 @@ func NewMessageService(client *telegram.Client, repo repository.MessageRepositor
 		client:          client,
 		api:             client.API(),
 		repo:            repo,
-		channels:        config.Channels,
 		MessagesFetched: make(chan struct{}),
 	}
 }
@@ -70,8 +68,8 @@ func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 
 func (s *MessageService) fetchMessages(ctx context.Context) error {
 	log.Info("Fetching messages")
-	for _, peerID := range s.channels {
-		log.Infof("Fetching messages for channel with peer_id: %d", peerID)
+	for peerID, channelName := range config.Channels {
+		log.Infof("Fetching messages for channel: %s", channelName)
 		channel, err := s.getChannel(ctx, peerID)
 		if err != nil {
 			log.Errorf("Error resolving channel: %v", err)

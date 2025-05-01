@@ -47,7 +47,7 @@ func (s *SummaryService) startSummaryFetcher(ctx context.Context) {
 }
 
 func (s *SummaryService) processAllChannels() error {
-	for _, peerID := range config.Channels {
+	for peerID, _ := range config.Channels {
 		if err := s.ProcessChannelSummaries(peerID); err != nil {
 			log.Errorf("Error processing summary for channel with peer_id %d: %v", peerID, err)
 			continue
