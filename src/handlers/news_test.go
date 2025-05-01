@@ -44,12 +44,12 @@ func TestNewsHandler_Handle(t *testing.T) {
 			name:        "Success case",
 			summary:     testSummary,
 			summaryErr:  nil,
-			expectedMsg: "Последние новости:\n\nTest summary content",
+			expectedMsg: "Последние новости:\nTest summary content",
 			expectedErr: nil,
 			setupMocks: func() {
 				mockContext.EXPECT().Get("user").Return(testUser)
 				mockSummaryRepo.EXPECT().GetLatestSummary(testUser.PreferredChannelID).Return(testSummary, nil)
-				mockContext.EXPECT().Send("Последние новости:\n\nTest summary content", keyboard.GetStartKeyboard()).Return(nil)
+				mockContext.EXPECT().Send("Последние новости:\nTest summary content", keyboard.GetStartKeyboard()).Return(nil)
 			},
 		},
 		{
