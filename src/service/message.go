@@ -27,7 +27,7 @@ type MessageService struct {
 	client   *telegram.Client
 	api      *tg.Client
 	repo     repository.MessageRepositoryInterface
-	channels []string
+	channels []int64
 	// Channel to signal when messages are fetched
 	MessagesFetched chan struct{}
 }
@@ -70,9 +70,9 @@ func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 
 func (s *MessageService) fetchMessages(ctx context.Context) error {
 	log.Info("Fetching messages")
-	for _, channelUsername := range s.channels {
-		log.Infof("Fetching messages for channel: %s", channelUsername)
-		channel, err := s.getChannel(ctx, channelUsername)
+	for _, peerID := range s.channels {
+		log.Infof("Fetching messages for channel with peer_id: %d", peerID)
+		channel, err := s.getChannel(ctx, peerID)
 		if err != nil {
 			log.Errorf("Error resolving channel: %v", err)
 			continue
@@ -90,15 +90,14 @@ func (s *MessageService) fetchMessages(ctx context.Context) error {
 			continue
 		}
 
-		log.Infof("Fetched %d messages for channel: %s", len(messages), channelUsername)
+		log.Infof("Fetched %d messages for channel with peer_id: %d", len(messages), peerID)
 
 		for _, msg := range messages {
 			message := &repository.Message{
-				ChannelID:       channel.ID,
-				MessageID:       msg.ID,
-				ChannelUsername: channelUsername,
-				MessageText:     msg.Message,
-				MessageDate:     time.Unix(int64(msg.Date), 0),
+				ChannelID:   channel.ID,
+				MessageID:   msg.ID,
+				MessageText: msg.Message,
+				MessageDate: time.Unix(int64(msg.Date), 0),
 			}
 
 			if err := s.repo.SaveMessage(message); err != nil {
@@ -110,20 +109,33 @@ func (s *MessageService) fetchMessages(ctx context.Context) error {
 	return nil
 }
 
-func (s *MessageService) getChannel(ctx context.Context, username string) (*tg.Channel, error) {
-	resolved, err := s.api.ContactsResolveUsername(ctx, &tg.ContactsResolveUsernameRequest{
-		Username: username,
+func (s *MessageService) getChannel(ctx context.Context, peerID int64) (*tg.Channel, error) {
+	channelInfo, err := s.api.ChannelsGetChannels(ctx, []tg.InputChannelClass{
+		&tg.InputChannel{
+			ChannelID:  peerID,
+			AccessHash: 0,
+		},
 	})
-
 	if err != nil {
-		log.Errorf("Error resolving username: %v", err)
+		log.Errorf("Error getting channel info by ID: %v", err)
 		return nil, err
 	}
 
-	channel, ok := resolved.Chats[0].(*tg.Channel)
+	chatsList, ok := channelInfo.(*tg.MessagesChats)
 	if !ok {
-		log.Error("Channel not found or not a channel")
+		log.Error("Unexpected response type from ChannelsGetChannels")
+		return nil, errors.New("unexpected response type")
+	}
+
+	if len(chatsList.Chats) == 0 {
+		log.Error("Channel not found by ID")
 		return nil, errors.New("channel not found")
+	}
+
+	channel, ok := chatsList.Chats[0].(*tg.Channel)
+	if !ok {
+		log.Error("Chat is not a channel")
+		return nil, errors.New("chat is not a channel")
 	}
 
 	return channel, nil

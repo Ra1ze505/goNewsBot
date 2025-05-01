@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
     channel_id BIGINT NOT NULL,
     message_id BIGINT NOT NULL,
-    channel_username VARCHAR(255) NOT NULL,
     message_text TEXT,
     message_date TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

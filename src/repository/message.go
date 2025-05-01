@@ -6,13 +6,12 @@ import (
 )
 
 type Message struct {
-	ID              int64
-	ChannelID       int64
-	MessageID       int
-	ChannelUsername string
-	MessageText     string
-	MessageDate     time.Time
-	CreatedAt       time.Time
+	ID          int64
+	ChannelID   int64
+	MessageID   int
+	MessageText string
+	MessageDate time.Time
+	CreatedAt   time.Time
 }
 
 type MessageRepositoryInterface interface {
@@ -30,14 +29,13 @@ func NewMessageRepository(db *sql.DB) MessageRepositoryInterface {
 
 func (r *MessageRepository) SaveMessage(message *Message) error {
 	query := `
-		INSERT INTO messages (channel_id, message_id, channel_username, message_text, message_date)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO messages (channel_id, message_id, message_text, message_date)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (channel_id, message_id) DO NOTHING
 	`
 	_, err := r.db.Exec(query,
 		message.ChannelID,
 		message.MessageID,
-		message.ChannelUsername,
 		message.MessageText,
 		message.MessageDate,
 	)

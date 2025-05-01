@@ -18,7 +18,6 @@ type SummaryRepositoryInterface interface {
 	SaveSummary(summary *Summary) error
 	HasSummaryToday(channelID int64) (bool, error)
 	GetMessagesForLastDay(channelID int64) ([]string, error)
-	GetChannelID(username string) (int64, error)
 	GetLatestSummary() (*Summary, error)
 }
 
@@ -81,21 +80,6 @@ func (r *SummaryRepository) GetMessagesForLastDay(channelID int64) ([]string, er
 		messages = append(messages, text)
 	}
 	return messages, rows.Err()
-}
-
-func (r *SummaryRepository) GetChannelID(username string) (int64, error) {
-	var channelID int64
-	query := `
-		SELECT DISTINCT channel_id 
-		FROM messages 
-		WHERE channel_username = $1 
-		LIMIT 1
-	`
-	err := r.db.QueryRow(query, username).Scan(&channelID)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return channelID, err
 }
 
 func (r *SummaryRepository) GetLatestSummary() (*Summary, error) {

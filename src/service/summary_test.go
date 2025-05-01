@@ -21,16 +21,15 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched)
 
 	tests := []struct {
-		name            string
-		channelUsername string
-		setupMocks      func()
-		expectedError   error
+		name          string
+		peerID        int64
+		setupMocks    func()
+		expectedError error
 	}{
 		{
-			name:            "Successfully process channel summaries",
-			channelUsername: "test_channel",
+			name:   "Successfully process channel summaries",
+			peerID: 123,
 			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(123), nil)
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
 				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1", "message2"}, nil)
 				mlRepo.EXPECT().SummarizeMessages([]string{"message1", "message2"}).Return("summary", nil)
@@ -39,78 +38,57 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:            "Channel not found",
-			channelUsername: "non_existent_channel",
+			name:   "Summary already exists for today",
+			peerID: 123,
 			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("non_existent_channel").Return(int64(0), nil)
-			},
-			expectedError: nil,
-		},
-		{
-			name:            "Summary already exists for today",
-			channelUsername: "test_channel",
-			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(123), nil)
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(true, nil)
 			},
 			expectedError: nil,
 		},
 		{
-			name:            "Error getting channel ID",
-			channelUsername: "test_channel",
+			name:   "Error checking summary existence",
+			peerID: 123,
 			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(0), errors.New("database error"))
-			},
-			expectedError: errors.New("database error"),
-		},
-		{
-			name:            "Error checking summary existence",
-			channelUsername: "test_channel",
-			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(123), nil)
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, errors.New("database error"))
 			},
-			expectedError: errors.New("database error"),
+			expectedError: errors.New("failed to check summary existence for channel 123: database error"),
 		},
 		{
-			name:            "Error getting messages",
-			channelUsername: "test_channel",
+			name:   "Error getting messages",
+			peerID: 123,
 			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(123), nil)
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
 				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return(nil, errors.New("database error"))
 			},
-			expectedError: errors.New("database error"),
+			expectedError: errors.New("failed to get messages for channel 123: database error"),
 		},
 		{
-			name:            "Error summarizing messages",
-			channelUsername: "test_channel",
+			name:   "Error summarizing messages",
+			peerID: 123,
 			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(123), nil)
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
 				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1", "message2"}, nil)
 				mlRepo.EXPECT().SummarizeMessages([]string{"message1", "message2"}).Return("", errors.New("ml service error"))
 			},
-			expectedError: errors.New("ml service error"),
+			expectedError: errors.New("failed to generate summary for channel 123: ml service error"),
 		},
 		{
-			name:            "Error saving summary",
-			channelUsername: "test_channel",
+			name:   "Error saving summary",
+			peerID: 123,
 			setupMocks: func() {
-				summaryRepo.EXPECT().GetChannelID("test_channel").Return(int64(123), nil)
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
 				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1", "message2"}, nil)
 				mlRepo.EXPECT().SummarizeMessages([]string{"message1", "message2"}).Return("summary", nil)
 				summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(errors.New("database error"))
 			},
-			expectedError: errors.New("database error"),
+			expectedError: errors.New("failed to save summary for channel 123: database error"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			err := service.ProcessChannelSummaries(tt.channelUsername)
+			err := service.ProcessChannelSummaries(tt.peerID)
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedError.Error(), err.Error())
@@ -133,11 +111,11 @@ func TestSummaryService_StartSummaryFetcher(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	summaryRepo.EXPECT().GetChannelID(gomock.Any()).Return(int64(123), nil).Times(2)
-	summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil).Times(2)
-	summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1"}, nil).Times(2)
-	mlRepo.EXPECT().SummarizeMessages([]string{"message1"}).Return("summary", nil).Times(2)
-	summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(nil).Times(2)
+	// Set up expectations for each channel operation
+	summaryRepo.EXPECT().HasSummaryToday(gomock.Any()).Return(false, nil).AnyTimes()
+	summaryRepo.EXPECT().GetMessagesForLastDay(gomock.Any()).Return([]string{"message1"}, nil).AnyTimes()
+	mlRepo.EXPECT().SummarizeMessages([]string{"message1"}).Return("summary", nil).AnyTimes()
+	summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(nil).AnyTimes()
 
 	go service.StartSummaryFetcher(ctx)
 

@@ -40,21 +40,6 @@ func (m *MockSummaryRepositoryInterface) EXPECT() *MockSummaryRepositoryInterfac
 	return m.recorder
 }
 
-// GetChannelID mocks base method.
-func (m *MockSummaryRepositoryInterface) GetChannelID(username string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChannelID", username)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChannelID indicates an expected call of GetChannelID.
-func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetChannelID(username any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChannelID", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetChannelID), username)
-}
-
 // GetLatestSummary mocks base method.
 func (m *MockSummaryRepositoryInterface) GetLatestSummary() (*repository.Summary, error) {
 	m.ctrl.T.Helper()

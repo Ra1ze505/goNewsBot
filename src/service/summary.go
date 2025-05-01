@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Ra1ze505/goNewsBot/src/config"
@@ -46,9 +47,9 @@ func (s *SummaryService) startSummaryFetcher(ctx context.Context) {
 }
 
 func (s *SummaryService) processAllChannels() error {
-	for _, channelUsername := range config.Channels {
-		if err := s.ProcessChannelSummaries(channelUsername); err != nil {
-			log.Errorf("Error processing summary for channel %s: %v", channelUsername, err)
+	for _, peerID := range config.Channels {
+		if err := s.ProcessChannelSummaries(peerID); err != nil {
+			log.Errorf("Error processing summary for channel with peer_id %d: %v", peerID, err)
 			continue
 		}
 	}
@@ -56,40 +57,43 @@ func (s *SummaryService) processAllChannels() error {
 	return nil
 }
 
-func (s *SummaryService) ProcessChannelSummaries(channelUsername string) error {
-	channelID, err := s.summaryRepo.GetChannelID(channelUsername)
+func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
+	// Check if we already have a summary for today
+	hasSummary, err := s.summaryRepo.HasSummaryToday(peerID)
 	if err != nil {
-		return err
-	}
-	if channelID == 0 {
-		return nil
-	}
-
-	hasSummary, err := s.summaryRepo.HasSummaryToday(channelID)
-	if err != nil {
-		return err
+		return fmt.Errorf("failed to check summary existence for channel %d: %w", peerID, err)
 	}
 	if hasSummary {
+		log.Infof("Summary already exists for channel %d today", peerID)
 		return nil
 	}
 
-	messages, err := s.summaryRepo.GetMessagesForLastDay(channelID)
+	// Get messages for the channel
+	messages, err := s.summaryRepo.GetMessagesForLastDay(peerID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get messages for channel %d: %w", peerID, err)
 	}
 
 	if len(messages) == 0 {
+		log.Infof("No messages found for channel %d", peerID)
 		return nil
 	}
 
+	// Process messages and create summary
 	summary, err := s.mlRepo.SummarizeMessages(messages)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate summary for channel %d: %w", peerID, err)
 	}
 
-	return s.summaryRepo.SaveSummary(&repository.Summary{
-		ChannelID: channelID,
+	// Save summary
+	if err := s.summaryRepo.SaveSummary(&repository.Summary{
+		ChannelID: peerID,
 		Summary:   summary,
 		CreatedAt: time.Now(),
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to save summary for channel %d: %w", peerID, err)
+	}
+
+	log.Infof("Successfully processed summary for channel %d", peerID)
+	return nil
 }
