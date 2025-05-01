@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS messages (
     message_text TEXT,
     message_date TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    preferred_channel_id BIGINT NOT NULL,
     UNIQUE(channel_id, message_id)
 ); 
 

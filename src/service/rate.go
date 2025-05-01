@@ -16,10 +16,10 @@ type CBRResponse struct {
 }
 
 type RateService struct {
-	repo *repository.RateRepository
+	repo repository.RateRepositoryInterface
 }
 
-func NewRateService(repo *repository.RateRepository) *RateService {
+func NewRateService(repo repository.RateRepositoryInterface) *RateService {
 	return &RateService{repo: repo}
 }
 

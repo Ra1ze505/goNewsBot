@@ -17,11 +17,12 @@ func CreateOrUpdateUser(userRepo repository.UserRepositoryInterface) tele.Middle
 
 func createOrUpdateUser(c tele.Context, next tele.HandlerFunc, userRepo repository.UserRepositoryInterface) error {
 	user := &repository.User{
-		Username:    &c.Sender().Username,
-		ChatID:      c.Sender().ID,
-		City:        "Москва",
-		Timezone:    "3",
-		MailingTime: time.Date(0, 0, 0, 10, 0, 0, 0, time.Local),
+		Username:           &c.Sender().Username,
+		ChatID:             c.Sender().ID,
+		City:               "Москва",
+		Timezone:           "3",
+		MailingTime:        time.Date(0, 0, 0, 10, 0, 0, 0, time.Local),
+		PreferredChannelID: 1429590454,
 	}
 
 	updatedUser, err := userRepo.CreateOrUpdateUser(user)
@@ -30,10 +31,8 @@ func createOrUpdateUser(c tele.Context, next tele.HandlerFunc, userRepo reposito
 		return err
 	}
 
-	// Set user in context
 	c.Set("user", updatedUser)
 
-	// Check if user is in city change mode
 	if c.Callback() != nil && c.Callback().Data == "change_city" {
 		c.Set("changing_city", true)
 	}

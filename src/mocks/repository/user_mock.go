@@ -71,6 +71,20 @@ func (mr *MockUserRepositoryInterfaceMockRecorder) GetUsersByMailingTime(mailing
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByMailingTime", reflect.TypeOf((*MockUserRepositoryInterface)(nil).GetUsersByMailingTime), mailingTime)
 }
 
+// UpdatePreferredChannel mocks base method.
+func (m *MockUserRepositoryInterface) UpdatePreferredChannel(userID *int, channelID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePreferredChannel", userID, channelID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdatePreferredChannel indicates an expected call of UpdatePreferredChannel.
+func (mr *MockUserRepositoryInterfaceMockRecorder) UpdatePreferredChannel(userID, channelID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePreferredChannel", reflect.TypeOf((*MockUserRepositoryInterface)(nil).UpdatePreferredChannel), userID, channelID)
+}
+
 // UpdateUserCityAndTimezone mocks base method.
 func (m *MockUserRepositoryInterface) UpdateUserCityAndTimezone(userID *int, city, timezone string) error {
 	m.ctrl.T.Helper()

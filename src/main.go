@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Ra1ze505/goNewsBot/src/handlers"
@@ -27,6 +28,31 @@ func loadEnv() {
 	}
 }
 
+type Repositories struct {
+	UserRepository    repository.UserRepositoryInterface
+	RateRepository    repository.RateRepositoryInterface
+	SummaryRepository repository.SummaryRepositoryInterface
+	MessageRepository repository.MessageRepositoryInterface
+	MLRepository      repository.MLRepositoryInterface
+	WeatherRepository repository.WeatherRepositoryInterface
+	StateStorage      *handlers.StateStorage
+}
+
+func NewRepositories(db *sql.DB) *Repositories {
+	mlRepo, err := repository.NewMLRepository()
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "Failed to initialize ML repository"))
+	}
+	return &Repositories{
+		UserRepository:    repository.NewUserRepository(db),
+		RateRepository:    repository.NewRateRepository(db),
+		SummaryRepository: repository.NewSummaryRepository(db),
+		MessageRepository: repository.NewMessageRepository(db),
+		MLRepository:      mlRepo,
+		WeatherRepository: repository.NewWeatherRepository(),
+		StateStorage:      handlers.NewStateStorage(),
+	}
+}
 func main() {
 	log.Info("Start ...")
 	loadEnv()
@@ -48,12 +74,9 @@ func main() {
 	}
 	defer db.Close()
 
-	userRepo := repository.NewUserRepository(db)
-	weatherRepo := repository.NewWeatherRepository()
-	stateStorage := handlers.NewStateStorage()
+	repositories := NewRepositories(db)
 
-	rateRepo := repository.NewRateRepository(db)
-	rateService := service.NewRateService(rateRepo)
+	rateService := service.NewRateService(repositories.RateRepository)
 	rateService.StartRateFetcher()
 
 	ctx := context.Background()
@@ -62,29 +85,24 @@ func main() {
 		log.Fatal(errors.Wrap(err, "Failed to initialize message service"))
 	}
 
-	mlRepo, err := repository.NewMLRepository()
-	if err != nil {
-		log.Fatal(errors.Wrap(err, "Failed to initialize ML repository"))
-	}
-
-	summaryRepo := repository.NewSummaryRepository(db)
-	summaryService := service.NewSummaryService(summaryRepo, mlRepo, messageService.MessagesFetched)
+	summaryService := service.NewSummaryService(repositories.SummaryRepository, repositories.MLRepository, messageService.MessagesFetched)
 	summaryService.StartSummaryFetcher(ctx)
 
 	bot.Use(middleware.MessageLogger())
-	bot.Use(middleware.CreateOrUpdateUser(userRepo))
-	addHandlers(bot, userRepo, weatherRepo, stateStorage, rateRepo, summaryRepo)
+	bot.Use(middleware.CreateOrUpdateUser(repositories.UserRepository))
+	addHandlers(bot, repositories)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, weatherRepo repository.WeatherRepositoryInterface, stateStorage *handlers.StateStorage, rateRepo repository.RateRepositoryInterface, summaryRepo repository.SummaryRepositoryInterface) {
+func addHandlers(bot *tele.Bot, repositories *Repositories) {
 	// Start command
 	bot.Handle("/start", handlers.HelloHandle)
 
 	// Initialize handlers
-	changeCityHandler := handlers.NewChangeCityHandler(userRepo, weatherRepo, stateStorage)
-	rateHandler := handlers.NewRateHandler(rateRepo)
-	newsHandler := handlers.NewNewsHandler(summaryRepo)
+	changeCityHandler := handlers.NewChangeCityHandler(repositories.UserRepository, repositories.WeatherRepository, repositories.StateStorage)
+	rateHandler := handlers.NewRateHandler(repositories.RateRepository)
+	newsHandler := handlers.NewNewsHandler(repositories.SummaryRepository)
+	changePrimeChannelHandler := handlers.NewChangePrimeChannelHandler(repositories.UserRepository)
 
 	// Button handlers
 	bot.Handle(&keyboard.WeatherBtn, handlers.WeatherHandle)
@@ -94,6 +112,15 @@ func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, wea
 	bot.Handle(&keyboard.ChangeTimeBtn, handlers.ChangeTimeHandle)
 	bot.Handle(&keyboard.AboutBtn, handlers.AboutHandle)
 	bot.Handle(&keyboard.ContactBtn, handlers.ContactHandle)
+	bot.Handle(&keyboard.ChangePrimeChannelBtn, changePrimeChannelHandler.Handle)
+
+	// Handle callback queries
+	bot.Handle(tele.OnCallback, func(c tele.Context) error {
+		if c.Callback().Data == keyboard.CancelChannelBtn.Data || strings.HasPrefix(c.Callback().Data, "channel_") {
+			return changePrimeChannelHandler.HandleChannelSelection(c)
+		}
+		return nil
+	})
 
 	// Text message handler
 	bot.Handle(tele.OnText, func(c tele.Context) error {
@@ -102,7 +129,7 @@ func addHandlers(bot *tele.Bot, userRepo repository.UserRepositoryInterface, wea
 			return nil
 		}
 
-		state := stateStorage.GetState(user.ChatID)
+		state := repositories.StateStorage.GetState(user.ChatID)
 		if state != nil && state.ChangingCity {
 			return changeCityHandler.HandleCityInput(c)
 		}
