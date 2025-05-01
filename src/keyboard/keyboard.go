@@ -16,10 +16,7 @@ var (
 	StPetersBtn   = tele.Btn{Text: "Санкт-Петербург"}
 	CancelCityBtn = tele.Btn{Text: "Отмена"}
 
-	ChangePrimeChannelBtn = tele.Btn{
-		Text: "Изменить новостной канал",
-		Data: "change_prime_channel",
-	}
+	ChangePrimeChannelBtn = tele.Btn{Text: "Изменить канал"}
 
 	CancelChannelBtn = tele.Btn{
 		Text: "Отмена",
@@ -33,14 +30,10 @@ func GetStartKeyboard() *tele.ReplyMarkup {
 	}
 
 	keyboard.Reply(
-		keyboard.Row(WeatherBtn),
-		keyboard.Row(RateBtn),
-		keyboard.Row(NewsBtn),
-		keyboard.Row(ChangeCityBtn),
-		keyboard.Row(ChangeTimeBtn),
-		keyboard.Row(ChangePrimeChannelBtn),
-		keyboard.Row(AboutBtn),
-		keyboard.Row(ContactBtn),
+		tele.Row{WeatherBtn, RateBtn, NewsBtn},
+		tele.Row{ChangePrimeChannelBtn, ChangeCityBtn},
+		tele.Row{ChangeTimeBtn},
+		tele.Row{AboutBtn, ContactBtn},
 	)
 
 	return keyboard
