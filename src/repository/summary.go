@@ -1,6 +1,6 @@
 package repository
 
-//go:generate mockgen -source=summary_repository.go -destination=../mocks/repository/summary_repository_mock.go
+//go:generate mockgen -source=summary.go -destination=../mocks/repository/summary_mock.go -package=mock_repository
 
 import (
 	"database/sql"

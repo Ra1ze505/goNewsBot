@@ -1,6 +1,6 @@
 package repository
 
-//go:generate mockgen -source=ml_repository.go -destination=../mocks/repository/ml_repository_mock.go
+//go:generate mockgen -source=ml.go -destination=../mocks/repository/ml_mock.go -package=mock_repository
 
 import (
 	"bytes"

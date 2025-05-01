@@ -16,7 +16,7 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 	defer ctrl.Finish()
 
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
-	mlRepo := mock_repository.NewMockMLServiceInterface(ctrl)
+	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
 	service := NewSummaryService(summaryRepo, mlRepo)
 
 	tests := []struct {
@@ -125,7 +125,7 @@ func TestSummaryService_StartSummaryFetcher(t *testing.T) {
 	defer ctrl.Finish()
 
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
-	mlRepo := mock_repository.NewMockMLServiceInterface(ctrl)
+	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
 	service := NewSummaryService(summaryRepo, mlRepo)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

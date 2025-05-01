@@ -1,5 +1,7 @@
 package repository
 
+//go:generate mockgen -source=rate.go -destination=../mocks/repository/rate_mock.go -package=mock_repository
+
 import (
 	"database/sql"
 	"encoding/json"
