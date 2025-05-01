@@ -91,7 +91,7 @@ func (r *SummaryRepository) GetLatestSummary(channelID int64) (*Summary, error) 
 		LIMIT 1
 	`
 	summary := &Summary{}
-	err := r.db.QueryRow(query).Scan(
+	err := r.db.QueryRow(query, channelID).Scan(
 		&summary.ID,
 		&summary.ChannelID,
 		&summary.Summary,

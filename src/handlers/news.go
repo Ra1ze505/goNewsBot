@@ -6,6 +6,8 @@ import (
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	"github.com/Ra1ze505/goNewsBot/src/repository"
 	tele "gopkg.in/telebot.v4"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type NewsHandler struct {
@@ -24,6 +26,7 @@ func (h *NewsHandler) Handle(c tele.Context) error {
 
 	summary, err := h.summaryRepo.GetLatestSummary(user.PreferredChannelID)
 	if err != nil {
+		log.Errorf("Error getting latest summary: %v", err)
 		return c.Send("Произошла ошибка при получении новостей. Попробуйте позже.", keyboard.GetStartKeyboard())
 	}
 
