@@ -9,17 +9,20 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	summaryPrompt = "Суммаризируй следующие новости и оставь только важное, не больше 2500 символов и 12 пунктов. " +
+	summaryPrompt = "Суммаризируй следующие новости и оставь только важное, не больше 2500 символов и 7 пунктов. " +
 		"Не добавляй никаких комментариев. " +
 		"Ответ должен быть на русском языке. " +
 		"Убери любые призывы подписаться, подписаться на канал и т.д. " +
-		"Это дожен быть обычный текст, без html тегов markdown и каких-либо других символов. " +
+		"Это дожен быть обычный текст без символов: *`<>/ " +
+		"Если среди новостей уже есть суммарная новость, то не добавляй её в список. " +
 		"Пример:\n" +
 		"🔸 Заголовок новости 1\n\n" +
 		"🔸 Заголовок новости 2\n\n" +
@@ -64,6 +67,17 @@ func NewMLRepository() (*MLRepository, error) {
 		apiToken: apiToken,
 		client:   &http.Client{Timeout: 250 * time.Second},
 	}, nil
+}
+
+func cleanResponse(content string) string {
+	// Remove markdown code blocks and their delimiters
+	content = regexp.MustCompile("```[a-zA-Z]*\n").ReplaceAllString(content, "")
+	content = regexp.MustCompile("```").ReplaceAllString(content, "")
+	// Remove horizontal lines
+	content = regexp.MustCompile("---\n").ReplaceAllString(content, "")
+	// Trim whitespace
+	content = strings.TrimSpace(content)
+	return content
 }
 
 func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
@@ -126,5 +140,6 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 		return "", fmt.Errorf("no choices in response")
 	}
 
-	return openRouterResp.Choices[0].Message.Content, nil
+	content := openRouterResp.Choices[0].Message.Content
+	return cleanResponse(content), nil
 }
