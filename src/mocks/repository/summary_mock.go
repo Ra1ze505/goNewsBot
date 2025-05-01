@@ -41,18 +41,18 @@ func (m *MockSummaryRepositoryInterface) EXPECT() *MockSummaryRepositoryInterfac
 }
 
 // GetLatestSummary mocks base method.
-func (m *MockSummaryRepositoryInterface) GetLatestSummary() (*repository.Summary, error) {
+func (m *MockSummaryRepositoryInterface) GetLatestSummary(channelID int64) (*repository.Summary, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLatestSummary")
+	ret := m.ctrl.Call(m, "GetLatestSummary", channelID)
 	ret0, _ := ret[0].(*repository.Summary)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetLatestSummary indicates an expected call of GetLatestSummary.
-func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetLatestSummary() *gomock.Call {
+func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetLatestSummary(channelID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSummary", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetLatestSummary))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSummary", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetLatestSummary), channelID)
 }
 
 // GetMessagesForLastDay mocks base method.

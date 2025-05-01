@@ -17,7 +17,12 @@ func NewNewsHandler(summaryRepo repository.SummaryRepositoryInterface) *NewsHand
 }
 
 func (h *NewsHandler) Handle(c tele.Context) error {
-	summary, err := h.summaryRepo.GetLatestSummary()
+	user, ok := c.Get("user").(*repository.User)
+	if !ok {
+		return fmt.Errorf("user not found in context")
+	}
+
+	summary, err := h.summaryRepo.GetLatestSummary(user.PreferredChannelID)
 	if err != nil {
 		return c.Send("Произошла ошибка при получении новостей. Попробуйте позже.", keyboard.GetStartKeyboard())
 	}

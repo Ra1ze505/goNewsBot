@@ -16,11 +16,14 @@ func TestNewsHandler_Handle(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Создаем моки
 	mockSummaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
 	mockContext := mock_telebot.NewMockContext(ctrl)
 
-	// Создаем тестовые данные
+	testUserID := 1
+	testUser := &repository.User{
+		ID:                 &testUserID,
+		PreferredChannelID: 123,
+	}
 	testSummary := &repository.Summary{
 		ID:        1,
 		ChannelID: 123,
@@ -43,7 +46,8 @@ func TestNewsHandler_Handle(t *testing.T) {
 			expectedMsg: "Последние новости:\n\nTest summary content",
 			expectedErr: nil,
 			setupMocks: func() {
-				mockSummaryRepo.EXPECT().GetLatestSummary().Return(testSummary, nil)
+				mockContext.EXPECT().Get("user").Return(testUser)
+				mockSummaryRepo.EXPECT().GetLatestSummary(testUser.PreferredChannelID).Return(testSummary, nil)
 				mockContext.EXPECT().Send("Последние новости:\n\nTest summary content", keyboard.GetStartKeyboard()).Return(nil)
 			},
 		},
@@ -54,7 +58,8 @@ func TestNewsHandler_Handle(t *testing.T) {
 			expectedMsg: "Новостей пока нет. Проверьте позже.",
 			expectedErr: nil,
 			setupMocks: func() {
-				mockSummaryRepo.EXPECT().GetLatestSummary().Return(nil, nil)
+				mockContext.EXPECT().Get("user").Return(testUser)
+				mockSummaryRepo.EXPECT().GetLatestSummary(testUser.PreferredChannelID).Return(nil, nil)
 				mockContext.EXPECT().Send("Новостей пока нет. Проверьте позже.", keyboard.GetStartKeyboard()).Return(nil)
 			},
 		},
@@ -65,25 +70,36 @@ func TestNewsHandler_Handle(t *testing.T) {
 			expectedMsg: "Произошла ошибка при получении новостей. Попробуйте позже.",
 			expectedErr: nil,
 			setupMocks: func() {
-				mockSummaryRepo.EXPECT().GetLatestSummary().Return(nil, errors.New("database error"))
+				mockContext.EXPECT().Get("user").Return(testUser)
+				mockSummaryRepo.EXPECT().GetLatestSummary(testUser.PreferredChannelID).Return(nil, errors.New("database error"))
 				mockContext.EXPECT().Send("Произошла ошибка при получении новостей. Попробуйте позже.", keyboard.GetStartKeyboard()).Return(nil)
+			},
+		},
+		{
+			name:        "User not found in context",
+			summary:     nil,
+			summaryErr:  nil,
+			expectedMsg: "",
+			expectedErr: errors.New("user not found in context"),
+			setupMocks: func() {
+				mockContext.EXPECT().Get("user").Return(nil)
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Настраиваем моки
 			tt.setupMocks()
 
-			// Создаем хендлер
 			handler := NewNewsHandler(mockSummaryRepo)
 
-			// Вызываем тестируемый метод
 			err := handler.Handle(mockContext)
 
-			// Проверяем результаты
-			if err != tt.expectedErr {
+			if err != nil && tt.expectedErr != nil {
+				if err.Error() != tt.expectedErr.Error() {
+					t.Errorf("Handle() error = %v, expectedErr %v", err, tt.expectedErr)
+				}
+			} else if err != tt.expectedErr {
 				t.Errorf("Handle() error = %v, expectedErr %v", err, tt.expectedErr)
 			}
 		})

@@ -18,7 +18,7 @@ type SummaryRepositoryInterface interface {
 	SaveSummary(summary *Summary) error
 	HasSummaryToday(channelID int64) (bool, error)
 	GetMessagesForLastDay(channelID int64) ([]string, error)
-	GetLatestSummary() (*Summary, error)
+	GetLatestSummary(channelID int64) (*Summary, error)
 }
 
 type SummaryRepository struct {
@@ -82,10 +82,11 @@ func (r *SummaryRepository) GetMessagesForLastDay(channelID int64) ([]string, er
 	return messages, rows.Err()
 }
 
-func (r *SummaryRepository) GetLatestSummary() (*Summary, error) {
+func (r *SummaryRepository) GetLatestSummary(channelID int64) (*Summary, error) {
 	query := `
 		SELECT id, channel_id, summary, created_at
 		FROM summaries
+		WHERE channel_id = $1
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
