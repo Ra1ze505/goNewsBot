@@ -56,6 +56,21 @@ func (mr *MockUserRepositoryInterfaceMockRecorder) CreateOrUpdateUser(user any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateUser", reflect.TypeOf((*MockUserRepositoryInterface)(nil).CreateOrUpdateUser), user)
 }
 
+// GetAllUsers mocks base method.
+func (m *MockUserRepositoryInterface) GetAllUsers() ([]*repository.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllUsers")
+	ret0, _ := ret[0].([]*repository.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllUsers indicates an expected call of GetAllUsers.
+func (mr *MockUserRepositoryInterfaceMockRecorder) GetAllUsers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUsers", reflect.TypeOf((*MockUserRepositoryInterface)(nil).GetAllUsers))
+}
+
 // GetUsersByMailingTime mocks base method.
 func (m *MockUserRepositoryInterface) GetUsersByMailingTime(mailingTime time.Time) ([]*repository.User, error) {
 	m.ctrl.T.Helper()

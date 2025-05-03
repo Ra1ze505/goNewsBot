@@ -1,12 +1,12 @@
-// gen hack 
+// gen hack
 package mock_telebot
 
 import (
 	reflect "reflect"
 	time "time"
 
-	src "gopkg.in/telebot.v4"
 	gomock "go.uber.org/mock/gomock"
+	src "gopkg.in/telebot.v4"
 )
 
 // MockContext is a mock of Context interface.

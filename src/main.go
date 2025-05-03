@@ -53,6 +53,7 @@ func NewRepositories(db *sql.DB) *Repositories {
 		StateStorage:      handlers.NewStateStorage(),
 	}
 }
+
 func main() {
 	log.Info("Start ...")
 	loadEnv()
@@ -87,6 +88,15 @@ func main() {
 
 	summaryService := service.NewSummaryService(repositories.SummaryRepository, repositories.MLRepository, messageService.MessagesFetched)
 	summaryService.StartSummaryFetcher(ctx)
+
+	mailingService := service.NewMailingService(
+		repositories.UserRepository,
+		repositories.RateRepository,
+		repositories.SummaryRepository,
+		repositories.WeatherRepository,
+		bot,
+	)
+	mailingService.StartMailingService(ctx)
 
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(repositories.UserRepository))

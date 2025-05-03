@@ -26,6 +26,7 @@ type UserRepositoryInterface interface {
 	UpdateUserCityAndTimezone(userID *int, city string, timezone string) error
 	UpdatePreferredChannel(userID *int, channelID int64) error
 	UpdateUserMailingTime(userID *int, mailingTime time.Time) error
+	GetAllUsers() ([]*User, error)
 }
 
 type UserRepository struct {
@@ -140,4 +141,24 @@ func (r *UserRepository) UpdateUserMailingTime(userID *int, mailingTime time.Tim
 		return errors.Wrap(err, "failed to update user mailing time")
 	}
 	return nil
+}
+
+func (r *UserRepository) GetAllUsers() ([]*User, error) {
+	rows, err := r.db.Query("SELECT id, username, chat_id, city, timezone, mailing_time, preferred_channel_id FROM users")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get all users")
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		user := &User{}
+		err := rows.Scan(&user.ID, &user.Username, &user.ChatID, &user.City, &user.Timezone, &user.MailingTime, &user.PreferredChannelID)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to scan user")
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
 }
