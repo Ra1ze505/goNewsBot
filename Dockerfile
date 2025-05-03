@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -14,8 +14,8 @@ RUN go mod download
 # Copy the source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./src/main.go
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o main ./src/main.go
 
 # Use a minimal alpine image for the final stage
 FROM alpine:latest
@@ -25,9 +25,6 @@ WORKDIR /app
 # Copy the binary from builder
 COPY --from=builder /app/main .
 COPY --from=builder /app/.env .
-
-# Expose port if needed
-EXPOSE 8080
 
 # Command to run the executable
 CMD ["./main"] 
