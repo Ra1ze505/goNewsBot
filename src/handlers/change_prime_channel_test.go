@@ -95,7 +95,7 @@ func TestChangePrimeChannelHandler_HandleChannelSelection_Cancel(t *testing.T) {
 	mockContext := mock_telebot.NewMockContext(ctrl)
 
 	mockContext.EXPECT().Get("user").Return(mockUser)
-	mockContext.EXPECT().Callback().Return(&tele.Callback{Data: keyboard.CancelChannelBtn.Data}).AnyTimes()
+	mockContext.EXPECT().Callback().Return(&tele.Callback{Data: keyboard.CancelBtn.Data}).AnyTimes()
 	mockContext.EXPECT().Send("Выбор канала отменен", gomock.Any()).Return(nil)
 
 	err := handler.HandleChannelSelection(mockContext)

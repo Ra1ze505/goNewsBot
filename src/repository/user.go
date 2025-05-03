@@ -25,6 +25,7 @@ type UserRepositoryInterface interface {
 	GetUsersByMailingTime(mailingTime time.Time) ([]*User, error)
 	UpdateUserCityAndTimezone(userID *int, city string, timezone string) error
 	UpdatePreferredChannel(userID *int, channelID int64) error
+	UpdateUserMailingTime(userID *int, mailingTime time.Time) error
 }
 
 type UserRepository struct {
@@ -125,6 +126,18 @@ func (r *UserRepository) UpdatePreferredChannel(userID *int, channelID int64) er
 	_, err := r.db.Exec(stmt, channelID, *userID)
 	if err != nil {
 		return errors.Wrap(err, "failed to update user preferred channel")
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateUserMailingTime(userID *int, mailingTime time.Time) error {
+	if userID == nil {
+		return errors.New("user ID is nil")
+	}
+	stmt := `UPDATE users SET mailing_time = $1 WHERE id = $2`
+	_, err := r.db.Exec(stmt, mailingTime, *userID)
+	if err != nil {
+		return errors.Wrap(err, "failed to update user mailing time")
 	}
 	return nil
 }

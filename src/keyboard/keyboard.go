@@ -18,7 +18,11 @@ var (
 
 	ChangePrimeChannelBtn = tele.Btn{Text: "Изменить канал"}
 
-	CancelChannelBtn = tele.Btn{
+	Time8Btn  = tele.Btn{Text: "08:00"}
+	Time9Btn  = tele.Btn{Text: "09:00"}
+	Time10Btn = tele.Btn{Text: "10:00"}
+
+	CancelBtn = tele.Btn{
 		Text: "Отмена",
 		Data: "cancel_channel",
 	}
@@ -47,6 +51,19 @@ func GetCitySelectionKeyboard() *tele.ReplyMarkup {
 	keyboard.Reply(
 		tele.Row{MoscowBtn, StPetersBtn},
 		tele.Row{CancelCityBtn},
+	)
+
+	return keyboard
+}
+
+func GetTimeSelectionKeyboard() *tele.ReplyMarkup {
+	keyboard := &tele.ReplyMarkup{
+		ResizeKeyboard: true,
+	}
+
+	keyboard.Reply(
+		tele.Row{Time8Btn, Time9Btn, Time10Btn},
+		tele.Row{CancelBtn},
 	)
 
 	return keyboard

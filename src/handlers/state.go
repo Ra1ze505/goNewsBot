@@ -2,6 +2,7 @@ package handlers
 
 type UserState struct {
 	ChangingCity bool
+	ChangingTime bool
 }
 
 type StateStorage struct {

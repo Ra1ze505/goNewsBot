@@ -98,3 +98,17 @@ func (mr *MockUserRepositoryInterfaceMockRecorder) UpdateUserCityAndTimezone(use
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCityAndTimezone", reflect.TypeOf((*MockUserRepositoryInterface)(nil).UpdateUserCityAndTimezone), userID, city, timezone)
 }
+
+// UpdateUserMailingTime mocks base method.
+func (m *MockUserRepositoryInterface) UpdateUserMailingTime(userID *int, mailingTime time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserMailingTime", userID, mailingTime)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserMailingTime indicates an expected call of UpdateUserMailingTime.
+func (mr *MockUserRepositoryInterfaceMockRecorder) UpdateUserMailingTime(userID, mailingTime any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserMailingTime", reflect.TypeOf((*MockUserRepositoryInterface)(nil).UpdateUserMailingTime), userID, mailingTime)
+}

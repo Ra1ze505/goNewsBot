@@ -44,7 +44,7 @@ func (h *ChangePrimeChannelHandler) Handle(c tele.Context) error {
 		rows = append(rows, tele.Row{btn})
 	}
 
-	rows = append(rows, tele.Row{keyboard.CancelChannelBtn})
+	rows = append(rows, tele.Row{keyboard.CancelBtn})
 
 	keyboard := &tele.ReplyMarkup{
 		ResizeKeyboard: true,
@@ -60,7 +60,7 @@ func (h *ChangePrimeChannelHandler) HandleChannelSelection(c tele.Context) error
 		return fmt.Errorf("user not found in context")
 	}
 
-	if c.Callback().Data == keyboard.CancelChannelBtn.Data {
+	if c.Callback().Data == keyboard.CancelBtn.Data {
 		return c.Send("Выбор канала отменен", keyboard.GetStartKeyboard())
 	}
 

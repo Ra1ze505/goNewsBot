@@ -20,8 +20,7 @@ func createOrUpdateUser(c tele.Context, next tele.HandlerFunc, userRepo reposito
 		Username:           &c.Sender().Username,
 		ChatID:             c.Sender().ID,
 		City:               "Москва",
-		Timezone:           "3",
-		MailingTime:        time.Date(0, 0, 0, 10, 0, 0, 0, time.Local),
+		MailingTime:        time.Date(0, 0, 0, 7, 0, 0, 0, time.UTC),
 		PreferredChannelID: 1429590454,
 	}
 

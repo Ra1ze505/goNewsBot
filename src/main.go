@@ -103,21 +103,25 @@ func addHandlers(bot *tele.Bot, repositories *Repositories) {
 	rateHandler := handlers.NewRateHandler(repositories.RateRepository)
 	newsHandler := handlers.NewNewsHandler(repositories.SummaryRepository)
 	changePrimeChannelHandler := handlers.NewChangePrimeChannelHandler(repositories.UserRepository)
+	changeTimeHandler := handlers.NewChangeTimeHandler(repositories.UserRepository, repositories.StateStorage)
 
 	// Button handlers
 	bot.Handle(&keyboard.WeatherBtn, handlers.WeatherHandle)
 	bot.Handle(&keyboard.RateBtn, rateHandler.Handle)
 	bot.Handle(&keyboard.NewsBtn, newsHandler.Handle)
 	bot.Handle(&keyboard.ChangeCityBtn, changeCityHandler.Handle)
-	bot.Handle(&keyboard.ChangeTimeBtn, handlers.ChangeTimeHandle)
+	bot.Handle(&keyboard.ChangeTimeBtn, changeTimeHandler.Handle)
 	bot.Handle(&keyboard.AboutBtn, handlers.AboutHandle)
 	bot.Handle(&keyboard.ContactBtn, handlers.ContactHandle)
 	bot.Handle(&keyboard.ChangePrimeChannelBtn, changePrimeChannelHandler.Handle)
 
 	// Handle callback queries
 	bot.Handle(tele.OnCallback, func(c tele.Context) error {
-		if c.Callback().Data == keyboard.CancelChannelBtn.Data || strings.HasPrefix(c.Callback().Data, "channel_") {
+		if c.Callback().Data == keyboard.CancelBtn.Data || strings.HasPrefix(c.Callback().Data, "channel_") {
 			return changePrimeChannelHandler.HandleChannelSelection(c)
+		}
+		if strings.HasPrefix(c.Callback().Data, "time_") || c.Callback().Data == "cancel_time" {
+			return changeTimeHandler.HandleTimeInput(c)
 		}
 		return nil
 	})
@@ -130,8 +134,16 @@ func addHandlers(bot *tele.Bot, repositories *Repositories) {
 		}
 
 		state := repositories.StateStorage.GetState(user.ChatID)
-		if state != nil && state.ChangingCity {
+
+		if state == nil {
+			return nil
+		}
+
+		if state.ChangingCity {
 			return changeCityHandler.HandleCityInput(c)
+		}
+		if state.ChangingTime {
+			return changeTimeHandler.HandleTimeInput(c)
 		}
 		return nil
 	})
