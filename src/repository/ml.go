@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -121,7 +119,6 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.apiToken)
 
-	log.Info("Sending request to OpenRouter")
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("error making request: %w", err)
