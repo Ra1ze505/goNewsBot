@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: ${DOCKER_USERNAME}/gonewsbot:latest
-    env_file:
-      - .env
+    image: ra1zee/gonewsbot:latest
     restart: unless-stopped 
+    volumes:
+      - ./env:/app/.env
