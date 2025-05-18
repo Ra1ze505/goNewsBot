@@ -64,7 +64,6 @@ func (s *MailingService) scheduleMailings(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			log.Info("Ticker ticked")
 			users, err := s.userRepo.GetAllUsers()
 			if err != nil {
 				log.Errorf("Error getting users: %v", err)
@@ -80,10 +79,6 @@ func (s *MailingService) scheduleMailings(ctx context.Context) {
 				}
 				userLoc := time.FixedZone(user.Timezone, timezone*60*60)
 				nowInUserZone := now.In(userLoc)
-
-				log.Infof("User mailing time: %s, current time in user zone: %s",
-					user.MailingTime.Format("15:04"),
-					nowInUserZone.Format("15:04"))
 
 				if nowInUserZone.Hour() == user.MailingTime.Hour() &&
 					nowInUserZone.Minute() == user.MailingTime.Minute() {
