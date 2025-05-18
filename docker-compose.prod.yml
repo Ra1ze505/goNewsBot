@@ -3,6 +3,6 @@ version: '3.8'
 services:
   app:
     image: ra1zee/gonewsbot:latest
+    env_file:
+      - .env
     restart: unless-stopped 
-    volumes:
-      - ./env:/app/.env
