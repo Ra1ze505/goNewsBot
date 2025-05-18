@@ -5,7 +5,8 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     city VARCHAR(255),
     timezone VARCHAR(3),
-    mailing_time TIME
+    mailing_time TIME,
+    preferred_channel_id BIGINT NOT NULL
 );
 
 CREATE INDEX idx_chat_id ON users (chat_id);
