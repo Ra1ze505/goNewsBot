@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  app:
+    image: ${DOCKER_USERNAME}/gonewsbot:latest
+    env_file:
+      - .env
+    restart: unless-stopped 
