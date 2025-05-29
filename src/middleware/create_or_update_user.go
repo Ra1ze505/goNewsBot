@@ -22,6 +22,7 @@ func createOrUpdateUser(c tele.Context, next tele.HandlerFunc, userRepo reposito
 		City:               "Москва",
 		MailingTime:        time.Date(0, 0, 0, 7, 0, 0, 0, time.UTC),
 		PreferredChannelID: 1429590454,
+		Timezone:           "3",
 	}
 
 	updatedUser, err := userRepo.CreateOrUpdateUser(user)

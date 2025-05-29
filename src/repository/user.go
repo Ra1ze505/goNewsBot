@@ -48,10 +48,10 @@ func (r *UserRepository) CreateOrUpdateUser(user *User) (*User, error) {
 	if err == sql.ErrNoRows {
 		var id int
 		err = r.db.QueryRow(`
-			INSERT INTO users (username, chat_id, city, mailing_time, preferred_channel_id)
-			VALUES ($1, $2, $3, $5, $6)
+			INSERT INTO users (username, chat_id, city, timezone, mailing_time, preferred_channel_id)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING id
-		`, user.Username, user.ChatID, user.City, user.MailingTime, user.PreferredChannelID).Scan(&id)
+		`, user.Username, user.ChatID, user.City, user.Timezone, user.MailingTime, user.PreferredChannelID).Scan(&id)
 
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create user")

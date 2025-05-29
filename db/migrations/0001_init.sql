@@ -4,7 +4,7 @@ CREATE TABLE users (
     chat_id INT UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     city VARCHAR(255),
-    timezone VARCHAR(3),
+    timezone VARCHAR(3) NOT NULL,
     mailing_time TIME,
     preferred_channel_id BIGINT NOT NULL
 );
