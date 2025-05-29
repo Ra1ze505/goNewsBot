@@ -34,7 +34,7 @@ func (h *NewsHandler) Handle(c tele.Context) error {
 		return c.Send("Новостей пока нет. Проверьте позже.", keyboard.GetStartKeyboard())
 	}
 
-	message := fmt.Sprintf("Последние новости:\n%s", summary.Summary)
+	message := fmt.Sprintf("Последние новости:\n%s\n\nСуммаризация от %s", summary.Summary, summary.CreatedAt.Format("2006-01-02 15:04:05"))
 	if !isValidSummaryLength(message) {
 		return c.Send("Суммарная длина новостей превышает 4096 символов. Воспользуйтесь кнопкой 'Написать нам' и сообщите о проблеме.", keyboard.GetStartKeyboard())
 	}
