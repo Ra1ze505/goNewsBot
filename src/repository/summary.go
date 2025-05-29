@@ -4,6 +4,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -12,6 +13,10 @@ type Summary struct {
 	ChannelID int64
 	Summary   string
 	CreatedAt time.Time
+}
+
+func (s *Summary) GetFormattedSummary() string {
+	return fmt.Sprintf("Последние новости:\n%s\n\nСуммаризация от %s UTC", s.Summary, s.CreatedAt.Format("2006-01-02 15:04:05"))
 }
 
 type SummaryRepositoryInterface interface {

@@ -157,5 +157,5 @@ func (s *MailingService) getNewsMessage(channelID int64) (string, error) {
 	if summary == nil {
 		return "Новостей пока нет. Проверьте позже.", nil
 	}
-	return fmt.Sprintf("Последние новости:\n%s\n\nСуммаризация от %s", summary.Summary, summary.CreatedAt.Format("2006-01-02 15:04:05")), nil
+	return summary.GetFormattedSummary(), nil
 }
