@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -136,6 +138,8 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
+
+	log.Infof("response from openrouter.ai: %s", string(body))
 
 	var openRouterResp OpenRouterResponse
 	if err := json.Unmarshal(body, &openRouterResp); err != nil {
