@@ -109,7 +109,7 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 				Content: summaryUserPrompt + "\n" + combinedText,
 			},
 		},
-		MaxTokens:   2500,
+		MaxTokens:   800,
 		Temperature: 0.3,
 	}
 
