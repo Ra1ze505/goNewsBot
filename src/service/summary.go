@@ -79,6 +79,8 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 		return nil
 	}
 
+	log.Infof("Summarizing %d messages for channel %d", len(messages), peerID)
+
 	// Process messages and create summary
 	summary, err := s.mlRepo.SummarizeMessages(messages)
 	if err != nil {
