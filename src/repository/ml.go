@@ -94,7 +94,7 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 	}
 
 	reqBody := OpenRouterRequest{
-		Model: "deepseek/deepseek-prover-v2:free",
+		Model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
 		Messages: []OpenRouterMessage{
 			{
 				Role:    "system",
@@ -150,5 +150,9 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 	}
 
 	content := openRouterResp.Choices[0].Message.Content
+	if content == "" {
+		return "", fmt.Errorf("no content in response")
+	}
+
 	return cleanResponse(content), nil
 }
