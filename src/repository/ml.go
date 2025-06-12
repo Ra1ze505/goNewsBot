@@ -50,9 +50,10 @@ type MLRepository struct {
 }
 
 type OpenRouterRequest struct {
-	Model     string              `json:"model"`
-	Messages  []OpenRouterMessage `json:"messages"`
-	MaxTokens int                 `json:"max_tokens"`
+	Model       string              `json:"model"`
+	Messages    []OpenRouterMessage `json:"messages"`
+	MaxTokens   int                 `json:"max_tokens"`
+	Temperature float64             `json:"temperature"`
 }
 
 type OpenRouterMessage struct {
@@ -111,7 +112,8 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 				Content: combinedText,
 			},
 		},
-		MaxTokens: 700,
+		MaxTokens:   1200,
+		Temperature: 0.3,
 	}
 
 	jsonData, err := json.Marshal(reqBody)
