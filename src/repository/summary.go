@@ -24,6 +24,7 @@ type SummaryRepositoryInterface interface {
 	HasSummaryToday(channelID int64) (bool, error)
 	GetMessagesForLastDay(channelID int64) ([]string, error)
 	GetLatestSummary(channelID int64) (*Summary, error)
+	GetMessagesForDate(channelID int64, date time.Time) ([]string, error)
 }
 
 type SummaryRepository struct {
@@ -109,4 +110,37 @@ func (r *SummaryRepository) GetLatestSummary(channelID int64) (*Summary, error) 
 		return nil, err
 	}
 	return summary, nil
+}
+
+func (r *SummaryRepository) GetMessagesForDate(channelID int64, date time.Time) ([]string, error) {
+	// Calculate start and end of the day in UTC
+	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	// Get messages for the specific day
+	query := `
+		SELECT message_text 
+		FROM messages 
+		WHERE channel_id = $1 
+		AND message_date >= $2 
+		AND message_date < $3
+		ORDER BY message_date ASC
+	`
+
+	rows, err := r.db.Query(query, channelID, startOfDay, endOfDay)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []string
+	for rows.Next() {
+		var text string
+		if err := rows.Scan(&text); err != nil {
+			return nil, err
+		}
+		messages = append(messages, text)
+	}
+
+	return messages, rows.Err()
 }

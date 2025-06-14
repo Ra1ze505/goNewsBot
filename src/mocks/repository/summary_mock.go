@@ -11,6 +11,7 @@ package mock_repository
 
 import (
 	reflect "reflect"
+	time "time"
 
 	repository "github.com/Ra1ze505/goNewsBot/src/repository"
 	gomock "go.uber.org/mock/gomock"
@@ -53,6 +54,21 @@ func (m *MockSummaryRepositoryInterface) GetLatestSummary(channelID int64) (*rep
 func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetLatestSummary(channelID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSummary", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetLatestSummary), channelID)
+}
+
+// GetMessagesForDate mocks base method.
+func (m *MockSummaryRepositoryInterface) GetMessagesForDate(channelID int64, date time.Time) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMessagesForDate", channelID, date)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMessagesForDate indicates an expected call of GetMessagesForDate.
+func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetMessagesForDate(channelID, date any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesForDate", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetMessagesForDate), channelID, date)
 }
 
 // GetMessagesForLastDay mocks base method.
