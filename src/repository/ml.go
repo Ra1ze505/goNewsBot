@@ -3,12 +3,13 @@ package repository
 //go:generate mockgen -source=ml.go -destination=../mocks/repository/ml_mock.go -package=mock_repository
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -17,8 +18,7 @@ import (
 )
 
 const (
-	summarySystemPrompt = `
-Ты — ИИ-ассистент по созданию сводок новостей. СТРОГО соблюдай ВСЕ правила:
+	summaryPrompt = `Ты — ИИ-ассистент по созданию сводок новостей. СТРОГО соблюдай ВСЕ правила:
 
 ФОРМАТИРОВАНИЕ:
 1. Каждый пункт начинается ТОЛЬКО с символа 🔸 и пробела
@@ -41,9 +41,8 @@ const (
 Пример правильного формата:
 🔸 Короткое событие. Второй факт.
 
-🔸 Другое событие в одной строке.`
+🔸 Другое событие в одной строке.
 
-	summaryUserPrompt = `
 Создай сводку из 5-8 главных событий. Каждый пункт ОБЯЗАТЕЛЬНО в одной строке, максимум 25 слов.
 
 Новости:`
@@ -54,39 +53,29 @@ type MLRepositoryInterface interface {
 }
 
 type MLRepository struct {
-	apiToken string
-	client   *http.Client
+	client *http.Client
 }
 
-type OpenRouterRequest struct {
-	Model       string              `json:"model"`
-	Messages    []OpenRouterMessage `json:"messages"`
-	MaxTokens   int                 `json:"max_tokens"`
-	Temperature float64             `json:"temperature"`
+type CreateJobResponse struct {
+	Code   int `json:"code"`
+	Result struct {
+		JobID    string `json:"job_id"`
+		Language string `json:"language"`
+	} `json:"result"`
+	Message struct {
+		En string `json:"en"`
+		Zh string `json:"zh"`
+	} `json:"message"`
 }
 
-type OpenRouterMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type OpenRouterResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
+type SSEData struct {
+	State int    `json:"state"`
+	Data  string `json:"data"`
 }
 
 func NewMLRepository() (*MLRepository, error) {
-	apiToken := os.Getenv("OPENROUTER_API_TOKEN")
-	if apiToken == "" {
-		return nil, fmt.Errorf("OPENROUTER_API_TOKEN environment variable must be set")
-	}
-
 	return &MLRepository{
-		apiToken: apiToken,
-		client:   &http.Client{Timeout: 250 * time.Second},
+		client: &http.Client{Timeout: 300 * time.Second},
 	}, nil
 }
 
@@ -98,41 +87,51 @@ func cleanResponse(content string) string {
 	return content
 }
 
-func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
-	// Combine all messages into one text
-	combinedText := ""
-	for _, msg := range messages {
-		combinedText += msg + "\n\n"
+func (r *MLRepository) createJob(text string) (string, error) {
+	log.Debugf("Creating job with text length: %d", len(text))
+
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	if err := w.WriteField("mode", "Summary"); err != nil {
+		return "", fmt.Errorf("error writing mode field: %w", err)
+	}
+	if err := w.WriteField("feature", "overview"); err != nil {
+		return "", fmt.Errorf("error writing feature field: %w", err)
+	}
+	if err := w.WriteField("entertext", text); err != nil {
+		return "", fmt.Errorf("error writing entertext field: %w", err)
+	}
+	if err := w.WriteField("language", "Русский"); err != nil {
+		return "", fmt.Errorf("error writing language field: %w", err)
+	}
+	if err := w.WriteField("length", "medium"); err != nil {
+		return "", fmt.Errorf("error writing length field: %w", err)
 	}
 
-	reqBody := OpenRouterRequest{
-		Model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
-		Messages: []OpenRouterMessage{
-			{
-				Role:    "system",
-				Content: summarySystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: summaryUserPrompt + "\n" + combinedText,
-			},
-		},
-		MaxTokens:   2000,
-		Temperature: 0.1,
-	}
+	w.Close()
 
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", fmt.Errorf("error marshaling request: %w", err)
-	}
-
-	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", "https://api.decopy.ai/api/decopy/ai-summarizer/create-job", &b)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.apiToken)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("Origin", "https://decopy.ai")
+	req.Header.Set("Priority", "u=1, i")
+	req.Header.Set("Product-Code", "067003")
+	req.Header.Set("Product-Serial", "b67ce40647796533eaa1d42b9fb5916e")
+	req.Header.Set("Referer", "https://decopy.ai/")
+	req.Header.Set("Sec-Ch-Ua", `"Brave";v="137", "Chromium";v="137", "Not/A)Brand";v="24"`)
+	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+	req.Header.Set("Sec-Ch-Ua-Platform", `"macOS"`)
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-site")
+	req.Header.Set("Sec-Gpc", "1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
 
 	resp, err := r.client.Do(req)
 	if err != nil {
@@ -149,21 +148,103 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	log.Infof("response from openrouter.ai: %s", string(body))
+	log.Debugf("Create job response: %s", string(body))
 
-	var openRouterResp OpenRouterResponse
-	if err := json.Unmarshal(body, &openRouterResp); err != nil {
+	var createResp CreateJobResponse
+	if err := json.Unmarshal(body, &createResp); err != nil {
 		return "", fmt.Errorf("error parsing response: %w", err)
 	}
 
-	if len(openRouterResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in response")
+	if createResp.Code != 100000 {
+		return "", fmt.Errorf("API returned error code: %v", createResp)
 	}
 
-	content := openRouterResp.Choices[0].Message.Content
+	return createResp.Result.JobID, nil
+}
+
+func (r *MLRepository) getJobResult(jobID string) (string, error) {
+	url := fmt.Sprintf("https://api.decopy.ai/api/decopy/ai-summarizer/get-job/%s", jobID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Origin", "https://decopy.ai")
+	req.Header.Set("Referer", "https://decopy.ai/")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(line, "data: ") {
+			dataStr := strings.TrimPrefix(line, "data: ")
+
+			if dataStr == "Data transfer completed." {
+				break
+			}
+
+			var sseData SSEData
+			if err := json.Unmarshal([]byte(dataStr), &sseData); err != nil {
+				log.Warnf("Failed to parse SSE data: %s, error: %v", dataStr, err)
+				continue
+			}
+
+			if sseData.State == 100000 {
+				result.WriteString(sseData.Data)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading SSE stream: %w", err)
+	}
+
+	content := result.String()
 	if content == "" {
-		return "", fmt.Errorf("no content in response")
+		return "", fmt.Errorf("no content received from API")
 	}
 
 	return cleanResponse(content), nil
+}
+
+func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
+	combinedText := summaryPrompt + "\n\n"
+	for _, msg := range messages {
+		combinedText += msg + "\n\n"
+	}
+
+	log.Infof("Creating summarization job for %d messages", len(messages))
+
+	jobID, err := r.createJob(combinedText)
+	if err != nil {
+		return "", fmt.Errorf("error creating job: %w", err)
+	}
+
+	log.Infof("Created job with ID: %s", jobID)
+
+	result, err := r.getJobResult(jobID)
+	if err != nil {
+		return "", fmt.Errorf("error getting job result: %w", err)
+	}
+
+	log.Infof("Successfully received summarization result")
+
+	return result, nil
 }
