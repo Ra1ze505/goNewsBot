@@ -130,9 +130,7 @@ func addHandlers(bot *tele.Bot, repositories *Repositories) {
 		if c.Callback().Data == keyboard.CancelBtn.Data || strings.HasPrefix(c.Callback().Data, "channel_") {
 			return changePrimeChannelHandler.HandleChannelSelection(c)
 		}
-		if strings.HasPrefix(c.Callback().Data, "time_") || c.Callback().Data == "cancel_time" {
-			return changeTimeHandler.HandleTimeInput(c)
-		}
+
 		return nil
 	})
 
