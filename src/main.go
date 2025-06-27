@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	adminhandlers "github.com/Ra1ze505/goNewsBot/src/admin_handlers"
 	"github.com/Ra1ze505/goNewsBot/src/handlers"
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	"github.com/Ra1ze505/goNewsBot/src/middleware"
@@ -86,7 +87,9 @@ func main() {
 		log.Fatal(errors.Wrap(err, "Failed to initialize message service"))
 	}
 
-	summaryService := service.NewSummaryService(repositories.SummaryRepository, repositories.MLRepository, messageService.MessagesFetched)
+	adminHandler := adminhandlers.NewAdminHandler(repositories.UserRepository, repositories.SummaryRepository)
+
+	summaryService := service.NewSummaryService(repositories.SummaryRepository, repositories.MLRepository, messageService.MessagesFetched, adminHandler.ForceRegenerateChannel)
 	summaryService.StartSummaryFetcher(ctx)
 
 	mailingService := service.NewMailingService(
@@ -100,13 +103,16 @@ func main() {
 
 	bot.Use(middleware.MessageLogger())
 	bot.Use(middleware.CreateOrUpdateUser(repositories.UserRepository))
-	addHandlers(bot, repositories)
+	addHandlers(bot, repositories, adminHandler)
 	bot.Start()
 }
 
-func addHandlers(bot *tele.Bot, repositories *Repositories) {
+func addHandlers(bot *tele.Bot, repositories *Repositories, adminHandler *adminhandlers.AdminHandler) {
 	// Start command
 	bot.Handle("/start", handlers.HelloHandle)
+
+	// Admin command
+	bot.Handle("/admin", adminHandler.Handle)
 
 	// Initialize handlers
 	changeCityHandler := handlers.NewChangeCityHandler(repositories.UserRepository, repositories.WeatherRepository, repositories.StateStorage)
@@ -131,6 +137,14 @@ func addHandlers(bot *tele.Bot, repositories *Repositories) {
 			return changePrimeChannelHandler.HandleChannelSelection(c)
 		}
 
+		if c.Callback().Data == "admin_regenerate_summary" {
+			return adminHandler.HandleRegenerateSummary(c)
+		}
+
+		if strings.HasPrefix(c.Callback().Data, "regenerate_summary_") {
+			return adminHandler.HandleRegenerateSummaryChannel(c)
+		}
+
 		return nil
 	})
 
@@ -153,6 +167,7 @@ func addHandlers(bot *tele.Bot, repositories *Repositories) {
 		if state.ChangingTime {
 			return changeTimeHandler.HandleTimeInput(c)
 		}
+
 		return nil
 	})
 }

@@ -25,6 +25,7 @@ type SummaryRepositoryInterface interface {
 	GetMessagesForLastDay(channelID int64) ([]string, error)
 	GetLatestSummary(channelID int64) (*Summary, error)
 	GetMessagesForDate(channelID int64, date time.Time) ([]string, error)
+	DeleteLastSummary(channelID int64) error
 }
 
 type SummaryRepository struct {
@@ -143,4 +144,24 @@ func (r *SummaryRepository) GetMessagesForDate(channelID int64, date time.Time) 
 	}
 
 	return messages, rows.Err()
+}
+
+func (r *SummaryRepository) DeleteLastSummary(channelID int64) error {
+	query := `
+		DELETE FROM summaries
+		WHERE id = (
+			SELECT id 
+			FROM summaries 
+			WHERE channel_id = $1 
+			ORDER BY created_at DESC 
+			LIMIT 1
+		)
+	`
+
+	_, err := r.db.Exec(query, channelID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

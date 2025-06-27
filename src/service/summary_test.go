@@ -18,7 +18,8 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
 	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
 	messagesFetched := make(chan struct{})
-	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched)
+	forceRegenerateChannel := make(chan struct{})
+	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched, forceRegenerateChannel)
 
 	tests := []struct {
 		name          string
@@ -106,7 +107,8 @@ func TestSummaryService_StartSummaryFetcher(t *testing.T) {
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
 	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
 	messagesFetched := make(chan struct{})
-	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched)
+	forceRegenerateChannel := make(chan struct{})
+	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched, forceRegenerateChannel)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()

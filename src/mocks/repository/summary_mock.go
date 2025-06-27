@@ -41,6 +41,20 @@ func (m *MockSummaryRepositoryInterface) EXPECT() *MockSummaryRepositoryInterfac
 	return m.recorder
 }
 
+// DeleteLastSummary mocks base method.
+func (m *MockSummaryRepositoryInterface) DeleteLastSummary(channelID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteLastSummary", channelID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteLastSummary indicates an expected call of DeleteLastSummary.
+func (mr *MockSummaryRepositoryInterfaceMockRecorder) DeleteLastSummary(channelID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLastSummary", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).DeleteLastSummary), channelID)
+}
+
 // GetLatestSummary mocks base method.
 func (m *MockSummaryRepositoryInterface) GetLatestSummary(channelID int64) (*repository.Summary, error) {
 	m.ctrl.T.Helper()

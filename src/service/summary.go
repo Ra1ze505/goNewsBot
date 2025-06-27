@@ -15,13 +15,16 @@ type SummaryService struct {
 	mlRepo      repository.MLRepositoryInterface
 	// Channel to receive signals from message service
 	messagesFetched <-chan struct{}
+	// Channel to receive signals from admin handler
+	forceRegenerateChannel <-chan struct{}
 }
 
-func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo repository.MLRepositoryInterface, messagesFetched <-chan struct{}) *SummaryService {
+func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo repository.MLRepositoryInterface, messagesFetched <-chan struct{}, forceRegenerateChannel <-chan struct{}) *SummaryService {
 	return &SummaryService{
-		summaryRepo:     summaryRepo,
-		mlRepo:          mlRepo,
-		messagesFetched: messagesFetched,
+		summaryRepo:            summaryRepo,
+		mlRepo:                 mlRepo,
+		messagesFetched:        messagesFetched,
+		forceRegenerateChannel: forceRegenerateChannel,
 	}
 }
 
@@ -39,6 +42,10 @@ func (s *SummaryService) startSummaryFetcher(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-s.messagesFetched:
+			if err := s.processAllChannels(); err != nil {
+				log.Errorf("Error processing summaries: %v", err)
+			}
+		case <-s.forceRegenerateChannel:
 			if err := s.processAllChannels(); err != nil {
 				log.Errorf("Error processing summaries: %v", err)
 			}

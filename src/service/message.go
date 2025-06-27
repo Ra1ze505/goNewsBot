@@ -41,13 +41,12 @@ func NewMessageService(client *telegram.Client, repo repository.MessageRepositor
 }
 
 func (s *MessageService) StartMessageFetcher(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 
 	if err := s.fetchMessages(ctx); err != nil {
 		log.Errorf("Error fetching messages on startup: %v", err)
 	} else {
-		// Signal that messages were fetched successfully
 		s.MessagesFetched <- struct{}{}
 	}
 
