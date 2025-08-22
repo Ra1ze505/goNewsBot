@@ -96,8 +96,8 @@ func (r *MLRepository) createJob(text string) (string, error) {
 	if err := w.WriteField("mode", "Summary"); err != nil {
 		return "", fmt.Errorf("error writing mode field: %w", err)
 	}
-	if err := w.WriteField("feature", "overview"); err != nil {
-		return "", fmt.Errorf("error writing feature field: %w", err)
+	if err := w.WriteField("file_type", "text"); err != nil {
+		return "", fmt.Errorf("error writing file_type field: %w", err)
 	}
 	if err := w.WriteField("entertext", text); err != nil {
 		return "", fmt.Errorf("error writing entertext field: %w", err)
@@ -111,7 +111,7 @@ func (r *MLRepository) createJob(text string) (string, error) {
 
 	w.Close()
 
-	req, err := http.NewRequest("POST", "https://api.decopy.ai/api/decopy/ai-summarizer/create-job", &b)
+	req, err := http.NewRequest("POST", "https://api.decopy.ai/api/decopy/ai-summarizer/create-job2", &b)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %w", err)
 	}
