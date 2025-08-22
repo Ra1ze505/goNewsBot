@@ -91,19 +91,19 @@ func (s *MessageService) fetchMessages(ctx context.Context) error {
 		channel, err := s.getChannel(ctx, peerID)
 		if err != nil {
 			log.Errorf("Error resolving channel: %v", err)
-			continue
+			return err
 		}
 
 		lastMessageTime, err := s.repo.GetLastMessageTime(channel.ID)
 		if err != nil {
 			log.Errorf("Error getting last message time: %v", err)
-			continue
+			return err
 		}
 
 		messages, err := s.getChannelMessages(ctx, channel, lastMessageTime)
 		if err != nil {
 			log.Errorf("Error getting channel messages: %v", err)
-			continue
+			return err
 		}
 
 		log.Infof("Fetched %d messages for channel with peer_id: %d", len(messages), peerID)
