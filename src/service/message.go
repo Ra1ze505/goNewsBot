@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Ra1ze505/goNewsBot/src/config"
@@ -72,16 +71,14 @@ func (s *MessageService) fetchMessages(ctx context.Context) error {
 	var err error
 
 	defer func() {
-		if isConnectionError(err) {
-			log.Warn("Connection error detected during message fetching, recreating Telegram client...")
-			if newClient, newWaiter, err := createTgClient(); err != nil {
-				log.Errorf("Failed to recreate Telegram client: %v", err)
-			} else {
-				s.client = newClient
-				s.waiter = newWaiter
-				s.api = newClient.API()
-				log.Info("Telegram client successfully recreated")
-			}
+		log.Infof("Got error, trying to recreate Telegram client: %v", err)
+		if newClient, newWaiter, err := createTgClient(); err != nil {
+			log.Errorf("Failed to recreate Telegram client: %v", err)
+		} else {
+			s.client = newClient
+			s.waiter = newWaiter
+			s.api = newClient.API()
+			log.Info("Telegram client successfully recreated")
 		}
 	}()
 
@@ -240,22 +237,6 @@ func (s *MessageService) getChannelMessages(ctx context.Context, channel *tg.Cha
 			return allMessages, nil
 		}
 	}
-}
-
-// isConnectionError checks if the error is related to connection issues
-func isConnectionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errStr := strings.ToLower(err.Error())
-	return strings.Contains(errStr, "connection_not_inited") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "connection closed") ||
-		strings.Contains(errStr, "network is unreachable") ||
-		strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "auth") ||
-		strings.Contains(errStr, "unauthorized")
 }
 
 func createTgClient() (*telegram.Client, *floodwait.Waiter, error) {
