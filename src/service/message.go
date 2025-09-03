@@ -32,19 +32,21 @@ type MessageService struct {
 	MessagesFetched chan struct{}
 }
 
-func NewMessageService(client *telegram.Client, waiter *floodwait.Waiter, repo repository.MessageRepositoryInterface) *MessageService {
+func NewMessageService(repo repository.MessageRepositoryInterface) *MessageService {
 	return &MessageService{
-		client:          client,
-		waiter:          waiter,
-		api:             client.API(),
 		repo:            repo,
 		MessagesFetched: make(chan struct{}),
 	}
 }
 
 func (s *MessageService) withRunClient(ctx context.Context, fn func(ctx context.Context) error) error {
-	if err := s.waiter.Run(ctx, func(ctx context.Context) error {
-		if err := s.client.Run(ctx, func(ctx context.Context) error {
+	client, waiter, err := createTgClient()
+	if err != nil {
+		return errors.Wrap(err, "create tg client")
+	}
+	if err := waiter.Run(ctx, func(ctx context.Context) error {
+		if err := client.Run(ctx, func(ctx context.Context) error {
+			s.api = client.API()
 			return fn(ctx)
 		}); err != nil {
 			log.Errorf("Error running Telegram client: %v", err)
@@ -271,13 +273,8 @@ func createTgClient() (*telegram.Client, *floodwait.Waiter, error) {
 }
 
 func InitAndStartMessageService(ctx context.Context, db *sql.DB) (*MessageService, error) {
-	client, waiter, err := createTgClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "create tg client")
-	}
-
 	messageRepo := repository.NewMessageRepository(db)
-	messageService := NewMessageService(client, waiter, messageRepo)
+	messageService := NewMessageService(messageRepo)
 
 	go func() {
 		messageService.StartMessageFetcher(ctx)
