@@ -42,11 +42,27 @@ func NewMessageService(client *telegram.Client, waiter *floodwait.Waiter, repo r
 	}
 }
 
+func (s *MessageService) withRunClient(ctx context.Context, fn func(ctx context.Context) error) error {
+	if err := s.waiter.Run(ctx, func(ctx context.Context) error {
+		if err := s.client.Run(ctx, func(ctx context.Context) error {
+			return fn(ctx)
+		}); err != nil {
+			log.Errorf("Error running Telegram client: %v", err)
+			return err
+		}
+		return nil
+	}); err != nil {
+		log.Errorf("Error running Telegram client: %v", err)
+		return err
+	}
+	return nil
+}
+
 func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 
-	if err := s.fetchMessages(ctx); err != nil {
+	if err := s.withRunClient(ctx, s.fetchMessages); err != nil {
 		log.Errorf("Error fetching messages on startup: %v", err)
 	} else {
 		s.MessagesFetched <- struct{}{}
@@ -57,7 +73,7 @@ func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.fetchMessages(ctx); err != nil {
+			if err := s.withRunClient(ctx, s.fetchMessages); err != nil {
 				log.Errorf("Error fetching messages: %v", err)
 			} else {
 				// Signal that messages were fetched successfully
@@ -68,21 +84,8 @@ func (s *MessageService) StartMessageFetcher(ctx context.Context) {
 }
 
 func (s *MessageService) fetchMessages(ctx context.Context) error {
-	var err error
-
-	defer func() {
-		log.Infof("Got error, trying to recreate Telegram client: %v", err)
-		if newClient, newWaiter, err := createTgClient(); err != nil {
-			log.Errorf("Failed to recreate Telegram client: %v", err)
-		} else {
-			s.client = newClient
-			s.waiter = newWaiter
-			s.api = newClient.API()
-			log.Info("Telegram client successfully recreated")
-		}
-	}()
-
 	log.Info("Fetching messages")
+
 	for peerID, channelName := range config.Channels {
 		log.Infof("Fetching messages for channel: %s", channelName)
 		channel, err := s.getChannel(ctx, peerID)
@@ -277,17 +280,7 @@ func InitAndStartMessageService(ctx context.Context, db *sql.DB) (*MessageServic
 	messageService := NewMessageService(client, waiter, messageRepo)
 
 	go func() {
-		if err := waiter.Run(ctx, func(ctx context.Context) error {
-			if err := client.Run(ctx, func(ctx context.Context) error {
-				messageService.StartMessageFetcher(ctx)
-				return nil
-			}); err != nil {
-				return errors.Wrap(err, "run")
-			}
-			return nil
-		}); err != nil {
-			log.Errorf("Error running Telegram client: %v", err)
-		}
+		messageService.StartMessageFetcher(ctx)
 	}()
 
 	return messageService, nil
