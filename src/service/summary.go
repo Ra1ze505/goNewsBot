@@ -65,7 +65,6 @@ func (s *SummaryService) processAllChannels() error {
 }
 
 func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
-	// Check if we already have a summary for today
 	hasSummary, err := s.summaryRepo.HasSummaryToday(peerID)
 	if err != nil {
 		return fmt.Errorf("failed to check summary existence for channel %d: %w", peerID, err)
@@ -75,7 +74,6 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 		return nil
 	}
 
-	// Get messages for the channel
 	messages, err := s.summaryRepo.GetMessagesForLastDay(peerID)
 	if err != nil {
 		return fmt.Errorf("failed to get messages for channel %d: %w", peerID, err)
@@ -88,13 +86,11 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 
 	log.Infof("Summarizing %d messages for channel %d", len(messages), peerID)
 
-	// Process messages and create summary
 	summary, err := s.mlRepo.SummarizeMessages(messages)
 	if err != nil {
 		return fmt.Errorf("failed to generate summary for channel %d: %w", peerID, err)
 	}
 
-	// Save summary
 	if err := s.summaryRepo.SaveSummary(&repository.Summary{
 		ChannelID: peerID,
 		Summary:   summary,

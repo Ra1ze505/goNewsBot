@@ -1,2 +1,4 @@
 .env
 session
+
+authorized_key.json

@@ -13,6 +13,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	// Batch size for iterative summarization
+	batchSize = 10
+)
+
 type MLRepositoryInterface interface {
 	SummarizeMessages(messages []string) (string, error)
 }
@@ -73,11 +78,6 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
-	combinedText := ""
-	for _, msg := range messages {
-		combinedText += msg + "\n\n"
-	}
-
 	log.Infof("Creating summarization request for %d messages using Yandex Cloud AI", len(messages))
 
 	threadID, err := r.threadManager.CreateThread(ctx)
@@ -87,12 +87,37 @@ func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
 
 	log.Debugf("Created thread with ID: %s", threadID)
 
-	err = r.threadManager.AddMessage(ctx, threadID, combinedText)
-	if err != nil {
-		return "", fmt.Errorf("failed to add message to thread: %w", err)
+	// Split messages into batches
+	totalBatches := (len(messages) + batchSize - 1) / batchSize
+	log.Infof("Processing %d messages in %d batches (batch size: %d)", len(messages), totalBatches, batchSize)
+
+	// Process each batch
+	for i := 0; i < len(messages); i += batchSize {
+		end := i + batchSize
+		if end > len(messages) {
+			end = len(messages)
+		}
+
+		batch := messages[i:end]
+		batchNum := (i / batchSize) + 1
+
+		// Combine messages in the batch
+		combinedText := ""
+		for _, msg := range batch {
+			combinedText += msg + "\n\n"
+		}
+
+		log.Debugf("Adding batch %d/%d (%d messages) to thread %s", batchNum, totalBatches, len(batch), threadID)
+
+		err = r.threadManager.AddMessage(ctx, threadID, combinedText)
+		if err != nil {
+			return "", fmt.Errorf("failed to add batch %d to thread: %w", batchNum, err)
+		}
+
+		log.Debugf("Successfully added batch %d/%d to thread %s", batchNum, totalBatches, threadID)
 	}
 
-	log.Debugf("Added message to thread %s", threadID)
+	log.Infof("All %d batches added to thread %s, running assistant", totalBatches, threadID)
 
 	result, err := r.threadManager.RunAssistant(ctx, threadID, r.assistantID)
 	if err != nil {
