@@ -65,11 +65,11 @@ func TestCreateChatCompletionSendsOpenAICompatibleRequest(t *testing.T) {
 		modelURI:      "gpt://test-folder/yandexgpt/latest",
 		extractPrompt: topicExtractionSystemPrompt,
 		renderPrompt:  digestRenderSystemPrompt,
-		maxTokens:     defaultYandexMaxTokens,
-		temperature:   defaultYandexTemperature,
+		extractParams: chatCompletionParams{MaxTokens: defaultExtractMaxTokens, Temperature: defaultExtractTemperature},
+		renderParams:  chatCompletionParams{MaxTokens: defaultRenderMaxTokens, Temperature: defaultRenderTemperature},
 	}
 
-	result, err := repo.createChatCompletion(context.Background(), topicExtractionSystemPrompt, "Пользовательский промпт")
+	result, err := repo.createChatCompletion(context.Background(), repo.extractParams, topicExtractionSystemPrompt, "Пользовательский промпт")
 
 	require.NoError(t, err)
 	assert.Equal(t, "Готовая сводка", result)
@@ -79,8 +79,8 @@ func TestCreateChatCompletionSendsOpenAICompatibleRequest(t *testing.T) {
 	assert.Contains(t, capturedRequest.Messages[0].Content, "Объединяй связанные сообщения")
 	assert.Equal(t, "user", capturedRequest.Messages[1].Role)
 	assert.Equal(t, "Пользовательский промпт", capturedRequest.Messages[1].Content)
-	assert.Equal(t, defaultYandexMaxTokens, capturedRequest.MaxTokens)
-	assert.Equal(t, defaultYandexTemperature, capturedRequest.Temperature)
+	assert.Equal(t, defaultExtractMaxTokens, capturedRequest.MaxTokens)
+	assert.Equal(t, defaultExtractTemperature, capturedRequest.Temperature)
 }
 
 func TestCreateChatCompletionReturnsAPIErrorMessage(t *testing.T) {
@@ -99,11 +99,11 @@ func TestCreateChatCompletionReturnsAPIErrorMessage(t *testing.T) {
 		modelURI:      "gpt://test-folder/yandexgpt/latest",
 		extractPrompt: topicExtractionSystemPrompt,
 		renderPrompt:  digestRenderSystemPrompt,
-		maxTokens:     defaultYandexMaxTokens,
-		temperature:   defaultYandexTemperature,
+		extractParams: chatCompletionParams{MaxTokens: defaultExtractMaxTokens, Temperature: defaultExtractTemperature},
+		renderParams:  chatCompletionParams{MaxTokens: defaultRenderMaxTokens, Temperature: defaultRenderTemperature},
 	}
 
-	result, err := repo.createChatCompletion(context.Background(), topicExtractionSystemPrompt, "prompt")
+	result, err := repo.createChatCompletion(context.Background(), repo.extractParams, topicExtractionSystemPrompt, "prompt")
 
 	assert.Empty(t, result)
 	require.Error(t, err)
@@ -149,8 +149,8 @@ func TestSummarizeMessagesExtractsTopicsThenRendersDigest(t *testing.T) {
 		modelURI:      "gpt://test-folder/yandexgpt/latest",
 		extractPrompt: topicExtractionSystemPrompt,
 		renderPrompt:  digestRenderSystemPrompt,
-		maxTokens:     defaultYandexMaxTokens,
-		temperature:   defaultYandexTemperature,
+		extractParams: chatCompletionParams{MaxTokens: defaultExtractMaxTokens, Temperature: defaultExtractTemperature},
+		renderParams:  chatCompletionParams{MaxTokens: defaultRenderMaxTokens, Temperature: defaultRenderTemperature},
 	}
 
 	result, err := repo.SummarizeMessages([]string{
@@ -170,6 +170,10 @@ func TestSummarizeMessagesExtractsTopicsThenRendersDigest(t *testing.T) {
 	assert.Contains(t, requests[1].Messages[1].Content, `"title": "Курс рубля"`)
 	assert.NotContains(t, requests[1].Messages[1].Content, "99")
 	assert.Contains(t, requests[1].Messages[1].Content, `"noise_message_numbers": [`)
+	assert.Equal(t, defaultExtractMaxTokens, requests[0].MaxTokens)
+	assert.Equal(t, defaultExtractTemperature, requests[0].Temperature)
+	assert.Equal(t, defaultRenderMaxTokens, requests[1].MaxTokens)
+	assert.Equal(t, defaultRenderTemperature, requests[1].Temperature)
 }
 
 func TestSummarizeMessagesReturnsEmptyDigestWhenNoTopics(t *testing.T) {
@@ -190,8 +194,8 @@ func TestSummarizeMessagesReturnsEmptyDigestWhenNoTopics(t *testing.T) {
 		modelURI:      "gpt://test-folder/yandexgpt/latest",
 		extractPrompt: topicExtractionSystemPrompt,
 		renderPrompt:  digestRenderSystemPrompt,
-		maxTokens:     defaultYandexMaxTokens,
-		temperature:   defaultYandexTemperature,
+		extractParams: chatCompletionParams{MaxTokens: defaultExtractMaxTokens, Temperature: defaultExtractTemperature},
+		renderParams:  chatCompletionParams{MaxTokens: defaultRenderMaxTokens, Temperature: defaultRenderTemperature},
 	}
 
 	result, err := repo.SummarizeMessages([]string{"Рекламный пост"})

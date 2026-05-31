@@ -25,8 +25,10 @@ import (
 const (
 	defaultYandexOpenAIBaseURL = "https://llm.api.cloud.yandex.net/v1/"
 	defaultYandexModelName     = "yandexgpt/latest"
-	defaultYandexMaxTokens     = 1800
-	defaultYandexTemperature   = 0.2
+	defaultExtractMaxTokens    = 16000
+	defaultExtractTemperature  = 0.2
+	defaultRenderMaxTokens     = 8000
+	defaultRenderTemperature   = 1.0
 	yandexRequestTimeout       = 300 * time.Second
 )
 
@@ -60,6 +62,11 @@ type MLRepositoryInterface interface {
 	SummarizeMessages(messages []string) (string, error)
 }
 
+type chatCompletionParams struct {
+	MaxTokens   int
+	Temperature float64
+}
+
 type MLRepository struct {
 	httpClient    *http.Client
 	tokenProvider tokenProvider
@@ -68,8 +75,8 @@ type MLRepository struct {
 	modelURI      string
 	extractPrompt string
 	renderPrompt  string
-	maxTokens     int
-	temperature   float64
+	extractParams chatCompletionParams
+	renderParams  chatCompletionParams
 }
 
 func NewMLRepository() (*MLRepository, error) {
@@ -106,8 +113,14 @@ func NewMLRepository() (*MLRepository, error) {
 		modelURI:      modelURI,
 		extractPrompt: topicExtractionSystemPrompt,
 		renderPrompt:  digestRenderSystemPrompt,
-		maxTokens:     defaultYandexMaxTokens,
-		temperature:   defaultYandexTemperature,
+		extractParams: chatCompletionParams{
+			MaxTokens:   defaultExtractMaxTokens,
+			Temperature: defaultExtractTemperature,
+		},
+		renderParams: chatCompletionParams{
+			MaxTokens:   defaultRenderMaxTokens,
+			Temperature: defaultRenderTemperature,
+		},
 	}, nil
 }
 
@@ -219,7 +232,7 @@ type summaryTopic struct {
 	SourceMessageNumbers []int  `json:"source_message_numbers"`
 }
 
-func (r *MLRepository) createChatCompletion(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+func (r *MLRepository) createChatCompletion(ctx context.Context, params chatCompletionParams, systemPrompt, userPrompt string) (string, error) {
 	token, err := r.tokenProvider.Token(ctx)
 	if err != nil {
 		return "", err
@@ -239,8 +252,8 @@ func (r *MLRepository) createChatCompletion(ctx context.Context, systemPrompt, u
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(userPrompt),
 		},
-		MaxTokens:   param.NewOpt(int64(r.maxTokens)),
-		Temperature: param.NewOpt(r.temperature),
+		MaxTokens:   param.NewOpt(int64(params.MaxTokens)),
+		Temperature: param.NewOpt(params.Temperature),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to call Yandex AI Studio chat completions: %w", err)
@@ -253,7 +266,7 @@ func (r *MLRepository) createChatCompletion(ctx context.Context, systemPrompt, u
 }
 
 func (r *MLRepository) extractTopicPlan(ctx context.Context, messages []string) (*summaryTopicPlan, error) {
-	rawPlan, err := r.createChatCompletion(ctx, r.extractPrompt, buildTopicExtractionPrompt(messages))
+	rawPlan, err := r.createChatCompletion(ctx, r.extractParams, r.extractPrompt, buildTopicExtractionPrompt(messages))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract news topics: %w", err)
 	}
@@ -272,7 +285,7 @@ func (r *MLRepository) renderDigest(ctx context.Context, topicPlan *summaryTopic
 		return "", err
 	}
 
-	return r.createChatCompletion(ctx, r.renderPrompt, prompt)
+	return r.createChatCompletion(ctx, r.renderParams, r.renderPrompt, prompt)
 }
 
 func buildTopicExtractionPrompt(messages []string) string {
