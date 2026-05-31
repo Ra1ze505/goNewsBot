@@ -18,7 +18,7 @@ require (
 	go.uber.org/mock v0.5.0
 	go.uber.org/zap v1.28.0
 	google.golang.org/grpc v1.66.2
-	gopkg.in/telebot.v4 v4.0.0-beta.4
+	gopkg.in/telebot.v4 v4.0.0-beta.8
 )
 
 require (
