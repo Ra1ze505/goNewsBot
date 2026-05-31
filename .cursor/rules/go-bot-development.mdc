@@ -1,0 +1,33 @@
+---
+description: Development guidance for Go bot changes
+globs: "**/*.go,go.mod,go.sum"
+alwaysApply: false
+---
+
+# Go bot development guidance
+
+Follow existing package boundaries before adding abstractions:
+
+- `main.go` wires dependencies and handlers.
+- `handlers` should keep Telegram interaction logic.
+- `service` should own long-running workers and orchestration.
+- `repository` should own Postgres queries and external clients.
+- `keyboard` should own button/markup definitions.
+
+When adding or changing behavior:
+
+- Preserve Russian user-facing strings unless the task explicitly asks to change copy.
+- Keep Telegram callback data compatible with handlers registered in `src/main.go`.
+- Use repository interfaces in handlers/services so existing gomock tests stay practical.
+- Use sqlmock for repository tests and gomock for handler/service tests, matching current test style.
+- Be careful with worker goroutines and channels:
+  - `MessageService.MessagesFetched` triggers summary processing;
+  - `AdminHandler.ForceRegenerateChannel` also triggers summary processing;
+  - `MailingService` uses a minute ticker and a buffered `mailingChan`.
+- Do not add a web server or port exposure unless the product direction changes.
+
+Validation expectations:
+
+- For normal code changes, run `go test -v ./...`.
+- For broader or dependency-level changes, also run `go build -v ./...`.
+- Full `go run ./src/main.go` is only meaningful when `.env`, Postgres, Yandex credentials, Telegram bot token, and MTProto session are available.
