@@ -1,9 +1,6 @@
 ---
 description: Development guidance for Go bot changes
-globs:
-  - "**/*.go"
-  - "go.mod"
-  - "go.sum"
+globs: "**/*.go,go.mod,go.sum"
 alwaysApply: false
 ---
 
