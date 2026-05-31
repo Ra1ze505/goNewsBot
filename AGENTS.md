@@ -8,7 +8,7 @@ Single Go binary (`go run ./src/main.go`): Telegram bot (long polling) plus back
 
 ### Prerequisites (not in `go mod download`)
 
-- **Go 1.23+** — see `go.mod` / `toolchain` (CI uses 1.23).
+- **Go 1.23+** — see `go.mod` / `toolchain` (CI currently uses Go 1.25 for security checks).
 - **PostgreSQL** — not bundled in `docker-compose.yml` (compose only builds/runs `app`). Schema: `db/migrations/0001_init.sql`.
 - **`.env`** at repo root (gitignored). Required for a full process start:
   - `DATABASE_URL` — Postgres connection string
@@ -44,7 +44,7 @@ psql "$DATABASE_URL" -f db/migrations/0001_init.sql
 | Run bot | `go run ./src/main.go` (with `.env` and Postgres up) |
 | Docker image | `docker compose up --build` (needs Docker + `.env`; still no Postgres in compose) |
 
-There is **no** golangci-lint or separate lint job in CI; validation is `go build` + `go test`.
+There is **no** golangci-lint job in CI; validation is `gofmt`, `go vet`, `go build`, `go test`, and `govulncheck`.
 
 ### Gotchas
 
