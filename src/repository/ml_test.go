@@ -12,6 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testChatCompletionRequest struct {
+	Model       string `json:"model"`
+	MaxTokens   int    `json:"max_tokens"`
+	Temperature float64
+	Messages    []struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	} `json:"messages"`
+}
+
 func TestNewMLRepositoryUsesOpenAICompatibleDefaults(t *testing.T) {
 	t.Setenv("YANDEX_FOLDER_ID", "test-folder")
 	t.Setenv("YANDEX_API_KEY", "test-api-key")
@@ -31,7 +41,7 @@ func TestNewMLRepositoryUsesOpenAICompatibleDefaults(t *testing.T) {
 }
 
 func TestCreateChatCompletionSendsOpenAICompatibleRequest(t *testing.T) {
-	var capturedRequest chatCompletionRequest
+	var capturedRequest testChatCompletionRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/chat/completions", r.URL.Path)
@@ -101,10 +111,10 @@ func TestCreateChatCompletionReturnsAPIErrorMessage(t *testing.T) {
 }
 
 func TestSummarizeMessagesExtractsTopicsThenRendersDigest(t *testing.T) {
-	var requests []chatCompletionRequest
+	var requests []testChatCompletionRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request chatCompletionRequest
+		var request testChatCompletionRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests = append(requests, request)
 

@@ -3,11 +3,9 @@ package repository
 //go:generate mockgen -source=ml.go -destination=../mocks/repository/ml_mock.go -package=mock_repository
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -15,6 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/shared"
 	log "github.com/sirupsen/logrus"
 	ycsdk "github.com/yandex-cloud/go-sdk"
 	"github.com/yandex-cloud/go-sdk/iamkey"
@@ -201,30 +203,6 @@ func newYandexTokenProvider(ctx context.Context) (tokenProvider, error) {
 	return &iamTokenProvider{sdk: sdk}, nil
 }
 
-type chatCompletionRequest struct {
-	Model       string        `json:"model"`
-	Messages    []chatMessage `json:"messages"`
-	MaxTokens   int           `json:"max_tokens"`
-	Temperature float64       `json:"temperature"`
-}
-
-type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type chatCompletionResponse struct {
-	Choices []struct {
-		Message chatMessage `json:"message"`
-	} `json:"choices"`
-}
-
-type chatCompletionErrorResponse struct {
-	Error struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
 type summaryTopicPlan struct {
 	Topics              []summaryTopic `json:"topics"`
 	NoiseMessageNumbers []int          `json:"noise_message_numbers,omitempty"`
@@ -244,42 +222,25 @@ func (r *MLRepository) createChatCompletion(ctx context.Context, systemPrompt, u
 		return "", err
 	}
 
-	payload := chatCompletionRequest{
-		Model: r.modelURI,
-		Messages: []chatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userPrompt},
+	client := openai.NewClient(
+		option.WithAPIKey(token),
+		option.WithBaseURL(r.baseURL),
+		option.WithHeader("x-folder-id", r.folderID),
+		option.WithHTTPClient(r.httpClient),
+		option.WithRequestTimeout(yandexRequestTimeout),
+	)
+
+	completion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model: shared.ChatModel(r.modelURI),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage(userPrompt),
 		},
-		MaxTokens:   r.maxTokens,
-		Temperature: r.temperature,
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal chat completion request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("failed to create chat completion request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-folder-id", r.folderID)
-
-	resp, err := r.httpClient.Do(req)
+		MaxTokens:   param.NewOpt(int64(r.maxTokens)),
+		Temperature: param.NewOpt(r.temperature),
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to call Yandex AI Studio chat completions: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("Yandex AI Studio returned %s: %s", resp.Status, parseChatCompletionError(resp.Body))
-	}
-
-	var completion chatCompletionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&completion); err != nil {
-		return "", fmt.Errorf("failed to decode chat completion response: %w", err)
 	}
 	if len(completion.Choices) == 0 || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
 		return "", fmt.Errorf("received empty chat completion response")
@@ -309,20 +270,6 @@ func (r *MLRepository) renderDigest(ctx context.Context, topicPlan *summaryTopic
 	}
 
 	return r.createChatCompletion(ctx, r.renderPrompt, prompt)
-}
-
-func parseChatCompletionError(body io.Reader) string {
-	data, err := io.ReadAll(io.LimitReader(body, 4096))
-	if err != nil {
-		return "failed to read error response"
-	}
-
-	var errorResponse chatCompletionErrorResponse
-	if err := json.Unmarshal(data, &errorResponse); err == nil && errorResponse.Error.Message != "" {
-		return errorResponse.Error.Message
-	}
-
-	return strings.TrimSpace(string(data))
 }
 
 func buildTopicExtractionPrompt(messages []string) string {
