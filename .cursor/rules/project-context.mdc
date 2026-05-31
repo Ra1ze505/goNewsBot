@@ -57,7 +57,8 @@ Use this as the first map of the repository before exploring. Keep it updated wh
 - Summary service (`src/service/summary.go`)
   - runs at startup, on `MessagesFetched`, and on admin force-regenerate signal;
   - creates at most one summary per channel per calendar day;
-  - reads messages for the last day and calls Yandex Cloud AI through `MLRepository`.
+  - reads messages for the last day and calls Yandex AI Studio through `MLRepository`;
+  - `MLRepository` first extracts ranked JSON topics with source message numbers, then renders a final Telegram digest.
 - Mailing service (`src/service/mailing.go`)
   - checks every minute after aligning to the next minute;
   - compares current time in the user's fixed UTC offset (`timezone`, stored as a string like `"3"`) with `mailing_time`;
