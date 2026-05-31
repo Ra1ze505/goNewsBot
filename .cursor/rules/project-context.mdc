@@ -30,7 +30,7 @@ Use this as the first map of the repository before exploring. Keep it updated wh
 - `src/service/`
   - background workers and cross-service orchestration.
 - `src/repository/`
-  - Postgres repositories plus external API clients for weather and Yandex Cloud AI.
+  - Postgres repositories plus external API clients for weather and Yandex AI Studio.
 - `src/config/config.go`
   - hardcoded monitored channel map and MTProto session directory.
 - `src/keyboard/`
@@ -57,7 +57,8 @@ Use this as the first map of the repository before exploring. Keep it updated wh
 - Summary service (`src/service/summary.go`)
   - runs at startup, on `MessagesFetched`, and on admin force-regenerate signal;
   - creates at most one summary per channel per calendar day;
-  - reads messages for the last day and calls Yandex Cloud AI through `MLRepository`.
+  - reads messages for the last day and calls Yandex AI Studio through `MLRepository`;
+  - `MLRepository` first extracts ranked JSON topics with source message numbers, then renders a final Telegram digest.
 - Mailing service (`src/service/mailing.go`)
   - checks every minute after aligning to the next minute;
   - compares current time in the user's fixed UTC offset (`timezone`, stored as a string like `"3"`) with `mailing_time`;
@@ -97,9 +98,15 @@ Use this as the first map of the repository before exploring. Keep it updated wh
   - apply `db/migrations/0001_init.sql` manually for local Postgres.
 - `BOT_TOKEN`
   - required for Telegram Bot API long polling.
-- `YANDEX_SERVICE_ACCOUNT_KEY_PATH`, `YANDEX_FOLDER_ID`, `YANDEX_ASSISTANT_ID`
-  - required by `NewMLRepository()`;
+- `YANDEX_FOLDER_ID` plus either `YANDEX_API_KEY` or `YANDEX_SERVICE_ACCOUNT_KEY_PATH`
+  - required by `NewMLRepository()` for Yandex AI Studio chat completions;
   - startup fails before polling if these are missing or invalid.
+- `YANDEX_MODEL_URI`
+  - optional model URI for summarization;
+  - defaults to `gpt://<YANDEX_FOLDER_ID>/yandexgpt/latest`.
+- `YANDEX_OPENAI_BASE_URL`
+  - optional OpenAI-compatible base URL;
+  - defaults to `https://llm.api.cloud.yandex.net/v1`.
 - `API_ID`, `API_HASH`
   - required for MTProto channel ingestion and `scripts/auth`.
 - `WEATHER_API_KEY`
@@ -113,7 +120,7 @@ External services:
 - Telegram MTProto (`github.com/gotd/td`) for channel history ingestion.
 - CBR daily JSON (`cbr-xml-daily.ru`) for currency rates.
 - OpenWeatherMap (`api.openweathermap.org`) for weather and timezone offset by city.
-- Yandex Cloud AI Assistants over gRPC endpoint `assistant.api.cloud.yandex.net:443`.
+- Yandex AI Studio OpenAI-compatible chat completions over REST endpoint `https://llm.api.cloud.yandex.net/v1/chat/completions`.
 
 Hardcoded monitored channels in `src/config/config.go`:
 
@@ -148,7 +155,7 @@ CI uses Go 1.23 and runs only `go build -v ./...` and `go test -v ./...`. There 
 
 - `go test ./...` is designed to run without live Postgres, Telegram, OpenWeatherMap, or Yandex Cloud; repository tests use sqlmock and services/handlers use gomock.
 - Docker Compose builds/runs only the app; Postgres is external.
-- Missing Yandex env vars fail startup in `NewRepositories()` even if testing a feature unrelated to summaries.
+- Missing Yandex AI Studio env vars fail startup in `NewRepositories()` even if testing a feature unrelated to summaries.
 - Missing MTProto session breaks the message/summary pipeline, but non-news bot flows can still work if DB and bot token are valid.
 - Production compose mounts `./session:/app/session` so MTProto session survives restarts.
 - `timezone` is a fixed UTC offset string, not an IANA timezone.

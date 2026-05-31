@@ -13,7 +13,9 @@ Single Go binary (`go run ./src/main.go`): Telegram bot (long polling) plus back
 - **`.env`** at repo root (gitignored). Required for a full process start:
   - `DATABASE_URL` — Postgres connection string
   - `BOT_TOKEN` — Telegram Bot API
-  - `YANDEX_SERVICE_ACCOUNT_KEY_PATH`, `YANDEX_FOLDER_ID`, `YANDEX_ASSISTANT_ID` — ML summarization (`NewMLRepository()` fails without these)
+  - `YANDEX_FOLDER_ID` plus either `YANDEX_API_KEY` or `YANDEX_SERVICE_ACCOUNT_KEY_PATH` — ML summarization through Yandex AI Studio OpenAI-compatible chat API
+  - `YANDEX_MODEL_URI` — optional; defaults to `gpt://<YANDEX_FOLDER_ID>/yandexgpt/latest`
+  - `YANDEX_OPENAI_BASE_URL` — optional; defaults to `https://llm.api.cloud.yandex.net/v1`
   - `API_ID`, `API_HASH` — Telegram user client for channel fetch (`scripts/auth`)
   - `WEATHER_API_KEY` — optional for weather flows
   - `ADMIN_ID` — optional for `/admin`
@@ -49,6 +51,6 @@ There is **no** golangci-lint job in CI; validation is `gofmt`, `go vet`, `go bu
 ### Gotchas
 
 - **`go test ./...` does not need Postgres, Telegram, or Yandex** — repositories use sqlmock; services use gomock.
-- **Full `go run ./src/main.go` needs all Yandex env vars** before the bot polls; missing `BOT_TOKEN` yields Telegram API errors immediately.
+- **Full `go run ./src/main.go` needs Yandex AI Studio auth env vars** before the bot polls; missing `BOT_TOKEN` yields Telegram API errors immediately.
 - **Channel fetcher** needs a valid on-disk session under `session/`; without it, message/summary workers error but the bot may still respond to some commands if DB + token work.
 - **Reinstalling Go modules** does not require restarting Postgres; the app has no hot-reload — restart the process after code or `.env` changes.
