@@ -3,66 +3,91 @@ package repository
 //go:generate mockgen -source=ml.go -destination=../mocks/repository/ml_mock.go -package=mock_repository
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	ycsdk "github.com/yandex-cloud/go-sdk"
+	"github.com/yandex-cloud/go-sdk/iamkey"
 )
 
 const (
-	// Batch size for iterative summarization
-	batchSize = 10
+	defaultYandexOpenAIBaseURL = "https://llm.api.cloud.yandex.net/v1"
+	defaultYandexModelName     = "yandexgpt/latest"
+	defaultYandexMaxTokens     = 1800
+	defaultYandexTemperature   = 0.2
+	yandexRequestTimeout       = 300 * time.Second
 )
+
+const newsSummarySystemPrompt = `Ты редактор новостного дайджеста для Telegram.
+
+Твоя задача — не пересказывать все сообщения подряд, а собрать короткую, полезную сводку дня.
+
+Правила:
+- Объединяй связанные сообщения в один топик.
+- Удаляй рекламу, повторы, эмоциональные комментарии без фактов и малозначимые локальные детали.
+- Выбирай только 3-5 самых важных топиков.
+- Для каждого топика дай короткий заголовок и 1-2 предложения сути.
+- Добавляй строку "Почему важно:" только если значение новости не очевидно.
+- Не выдумывай факты, которых нет в сообщениях.
+- Пиши на русском языке.
+- Итог должен быть короче 3500 символов.`
 
 type MLRepositoryInterface interface {
 	SummarizeMessages(messages []string) (string, error)
 }
 
 type MLRepository struct {
-	yandexClient  *YandexClient
-	threadManager *ThreadManager
-	assistantID   string
+	httpClient    *http.Client
+	tokenProvider tokenProvider
+	baseURL       string
+	folderID      string
+	modelURI      string
+	systemPrompt  string
+	maxTokens     int
+	temperature   float64
 }
 
 func NewMLRepository() (*MLRepository, error) {
 	ctx := context.Background()
-
-	// Получаем конфигурацию из переменных окружения
-	serviceAccountKeyPath := os.Getenv("YANDEX_SERVICE_ACCOUNT_KEY_PATH")
-	if serviceAccountKeyPath == "" {
-		return nil, fmt.Errorf("YANDEX_SERVICE_ACCOUNT_KEY_PATH environment variable is required")
-	}
 
 	folderID := os.Getenv("YANDEX_FOLDER_ID")
 	if folderID == "" {
 		return nil, fmt.Errorf("YANDEX_FOLDER_ID environment variable is required")
 	}
 
-	assistantID := os.Getenv("YANDEX_ASSISTANT_ID")
-	if assistantID == "" {
-		return nil, fmt.Errorf("YANDEX_ASSISTANT_ID environment variable is required")
+	tokenProvider, err := newYandexTokenProvider(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// Создаем Yandex Cloud клиент
-	yandexClient, err := NewYandexClient(ctx, serviceAccountKeyPath, folderID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Yandex Cloud client: %w", err)
+	baseURL := strings.TrimRight(os.Getenv("YANDEX_OPENAI_BASE_URL"), "/")
+	if baseURL == "" {
+		baseURL = defaultYandexOpenAIBaseURL
 	}
 
-	// Создаем менеджер тредов
-	threadManager, err := NewThreadManager(yandexClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create thread manager: %w", err)
+	modelURI := os.Getenv("YANDEX_MODEL_URI")
+	if modelURI == "" {
+		modelURI = fmt.Sprintf("gpt://%s/%s", folderID, defaultYandexModelName)
 	}
 
 	return &MLRepository{
-		yandexClient:  yandexClient,
-		threadManager: threadManager,
-		assistantID:   assistantID,
+		httpClient:    &http.Client{Timeout: yandexRequestTimeout},
+		tokenProvider: tokenProvider,
+		baseURL:       baseURL,
+		folderID:      folderID,
+		modelURI:      modelURI,
+		systemPrompt:  newsSummarySystemPrompt,
+		maxTokens:     defaultYandexMaxTokens,
+		temperature:   defaultYandexTemperature,
 	}, nil
 }
 
@@ -75,58 +100,176 @@ func cleanResponse(content string) string {
 }
 
 func (r *MLRepository) SummarizeMessages(messages []string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), yandexRequestTimeout)
 	defer cancel()
 
-	log.Infof("Creating summarization request for %d messages using Yandex Cloud AI", len(messages))
+	log.Infof("Creating summarization request for %d messages using Yandex AI Studio OpenAI-compatible API", len(messages))
 
-	threadID, err := r.threadManager.CreateThread(ctx)
+	result, err := r.createChatCompletion(ctx, buildSummaryUserPrompt(messages))
 	if err != nil {
-		return "", fmt.Errorf("failed to create thread: %w", err)
+		return "", err
 	}
 
-	log.Debugf("Created thread with ID: %s", threadID)
+	log.Infof("Successfully received summarization result from Yandex AI Studio")
 
-	// Split messages into batches
-	totalBatches := (len(messages) + batchSize - 1) / batchSize
-	log.Infof("Processing %d messages in %d batches (batch size: %d)", len(messages), totalBatches, batchSize)
+	return cleanResponse(result), nil
+}
 
-	// Process each batch
-	for i := 0; i < len(messages); i += batchSize {
-		end := i + batchSize
-		if end > len(messages) {
-			end = len(messages)
-		}
+type tokenProvider interface {
+	Token(ctx context.Context) (string, error)
+}
 
-		batch := messages[i:end]
-		batchNum := (i / batchSize) + 1
+type staticTokenProvider struct {
+	token string
+}
 
-		// Combine messages in the batch
-		combinedText := ""
-		for _, msg := range batch {
-			combinedText += msg + "\n\n"
-		}
+func (p staticTokenProvider) Token(context.Context) (string, error) {
+	return p.token, nil
+}
 
-		log.Debugf("Adding batch %d/%d (%d messages) to thread %s", batchNum, totalBatches, len(batch), threadID)
+type iamTokenProvider struct {
+	sdk *ycsdk.SDK
+}
 
-		err = r.threadManager.AddMessage(ctx, threadID, combinedText)
-		if err != nil {
-			return "", fmt.Errorf("failed to add batch %d to thread: %w", batchNum, err)
-		}
-
-		log.Debugf("Successfully added batch %d/%d to thread %s", batchNum, totalBatches, threadID)
-	}
-
-	log.Infof("All %d batches added to thread %s, running assistant", totalBatches, threadID)
-
-	result, err := r.threadManager.RunAssistant(ctx, threadID, r.assistantID)
+func (p *iamTokenProvider) Token(ctx context.Context) (string, error) {
+	token, err := p.sdk.CreateIAMToken(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to run assistant: %w", err)
+		return "", fmt.Errorf("failed to get IAM token: %w", err)
+	}
+	return token.IamToken, nil
+}
+
+func newYandexTokenProvider(ctx context.Context) (tokenProvider, error) {
+	apiKey := os.Getenv("YANDEX_API_KEY")
+	if apiKey != "" {
+		return staticTokenProvider{token: apiKey}, nil
 	}
 
-	log.Infof("Successfully received summarization result from Yandex Cloud AI")
+	serviceAccountKeyPath := os.Getenv("YANDEX_SERVICE_ACCOUNT_KEY_PATH")
+	if serviceAccountKeyPath == "" {
+		return nil, fmt.Errorf("YANDEX_API_KEY or YANDEX_SERVICE_ACCOUNT_KEY_PATH environment variable is required")
+	}
 
-	cleanedResult := cleanResponse(result)
+	keyData, err := os.ReadFile(serviceAccountKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read service account key: %w", err)
+	}
 
-	return cleanedResult, nil
+	key, err := iamkey.ReadFromJSONBytes(keyData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse service account key: %w", err)
+	}
+
+	creds, err := ycsdk.ServiceAccountKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create credentials: %w", err)
+	}
+
+	sdk, err := ycsdk.Build(ctx, ycsdk.Config{
+		Credentials: creds,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Yandex Cloud SDK: %w", err)
+	}
+
+	return &iamTokenProvider{sdk: sdk}, nil
+}
+
+type chatCompletionRequest struct {
+	Model       string        `json:"model"`
+	Messages    []chatMessage `json:"messages"`
+	MaxTokens   int           `json:"max_tokens"`
+	Temperature float64       `json:"temperature"`
+}
+
+type chatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type chatCompletionResponse struct {
+	Choices []struct {
+		Message chatMessage `json:"message"`
+	} `json:"choices"`
+}
+
+type chatCompletionErrorResponse struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+func (r *MLRepository) createChatCompletion(ctx context.Context, userPrompt string) (string, error) {
+	token, err := r.tokenProvider.Token(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	payload := chatCompletionRequest{
+		Model: r.modelURI,
+		Messages: []chatMessage{
+			{Role: "system", Content: r.systemPrompt},
+			{Role: "user", Content: userPrompt},
+		},
+		MaxTokens:   r.maxTokens,
+		Temperature: r.temperature,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal chat completion request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("failed to create chat completion request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-folder-id", r.folderID)
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to call Yandex AI Studio chat completions: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("Yandex AI Studio returned %s: %s", resp.Status, parseChatCompletionError(resp.Body))
+	}
+
+	var completion chatCompletionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&completion); err != nil {
+		return "", fmt.Errorf("failed to decode chat completion response: %w", err)
+	}
+	if len(completion.Choices) == 0 || strings.TrimSpace(completion.Choices[0].Message.Content) == "" {
+		return "", fmt.Errorf("received empty chat completion response")
+	}
+
+	return completion.Choices[0].Message.Content, nil
+}
+
+func parseChatCompletionError(body io.Reader) string {
+	data, err := io.ReadAll(io.LimitReader(body, 4096))
+	if err != nil {
+		return "failed to read error response"
+	}
+
+	var errorResponse chatCompletionErrorResponse
+	if err := json.Unmarshal(data, &errorResponse); err == nil && errorResponse.Error.Message != "" {
+		return errorResponse.Error.Message
+	}
+
+	return strings.TrimSpace(string(data))
+}
+
+func buildSummaryUserPrompt(messages []string) string {
+	var builder strings.Builder
+	builder.WriteString("Сгруппируй эти сообщения канала в итоговый дайджест. Используй номера сообщений только для анализа, в финальный текст их не добавляй.\n\n")
+	builder.WriteString("Сообщения:\n")
+	for i, msg := range messages {
+		builder.WriteString(fmt.Sprintf("\n[#%d]\n%s\n", i+1, strings.TrimSpace(msg)))
+	}
+
+	return builder.String()
 }
