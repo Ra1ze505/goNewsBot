@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultYandexOpenAIBaseURL = "https://llm.api.cloud.yandex.net/v1"
+	defaultYandexOpenAIBaseURL = "https://llm.api.cloud.yandex.net/v1/"
 	defaultYandexModelName     = "yandexgpt/latest"
 	defaultYandexMaxTokens     = 1800
 	defaultYandexTemperature   = 0.2
@@ -85,9 +85,12 @@ func NewMLRepository() (*MLRepository, error) {
 		return nil, err
 	}
 
-	baseURL := strings.TrimRight(os.Getenv("YANDEX_OPENAI_BASE_URL"), "/")
+	baseURL := strings.TrimSpace(os.Getenv("YANDEX_OPENAI_BASE_URL"))
 	if baseURL == "" {
 		baseURL = defaultYandexOpenAIBaseURL
+	}
+	if !strings.HasSuffix(baseURL, "/") {
+		baseURL += "/"
 	}
 
 	modelURI := os.Getenv("YANDEX_MODEL_URI")
