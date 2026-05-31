@@ -39,7 +39,21 @@ func (h *NewsHandler) Handle(c tele.Context) error {
 		return c.Send("Суммарная длина новостей превышает 4096 символов. Воспользуйтесь кнопкой 'Написать нам' и сообщите о проблеме.", keyboard.GetStartKeyboard())
 	}
 
-	return c.Send(message, keyboard.GetStartKeyboard())
+	err = c.Send(message, keyboard.GetStartKeyboard(), &tele.SendOptions{
+		ParseMode: tele.ModeMarkdown,
+	})
+
+	if err != nil {
+		log.Errorf("Error sending news message to user %d: %v", c.Sender().ID, err)
+		log.Info("Try send plain text message")
+		err = c.Send(message, keyboard.GetStartKeyboard())
+		if err != nil {
+			log.Errorf("Error sending plain text message to user %d: %v", c.Sender().ID, err)
+			return err
+		}
+	}
+	return nil
+
 }
 
 func isValidSummaryLength(summary string) bool {

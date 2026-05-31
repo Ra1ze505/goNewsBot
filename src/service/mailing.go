@@ -118,9 +118,16 @@ func (s *MailingService) sendMailings(ctx context.Context) {
 			fullMessage := fmt.Sprintf("Ежедневная рассылка:\n\n%s\n\n%s\n\n%s",
 				weatherMsg, ratesMsg, newsMsg)
 
-			_, err = s.bot.Send(&tele.User{ID: user.ChatID}, fullMessage, keyboard.GetStartKeyboard())
+			_, err = s.bot.Send(&tele.User{ID: user.ChatID}, fullMessage, keyboard.GetStartKeyboard(), &tele.SendOptions{
+				ParseMode: tele.ModeMarkdown,
+			})
 			if err != nil {
 				log.Errorf("Error sending message to user %d: %v", user.ChatID, err)
+				log.Info("Try send plain text message")
+				_, err = s.bot.Send(&tele.User{ID: user.ChatID}, fullMessage, keyboard.GetStartKeyboard())
+				if err != nil {
+					log.Errorf("Error sending plain text message to user %d: %v", user.ChatID, err)
+				}
 			}
 		}
 	}
