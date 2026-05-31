@@ -1,0 +1,156 @@
+---
+description: Persistent project context for goNewsBot
+alwaysApply: true
+---
+
+# goNewsBot project context
+
+Use this as the first map of the repository before exploring. Keep it updated when architecture, integrations, startup requirements, commands, or persistent data behavior changes.
+
+## Product
+
+- Single Go binary: `go run ./src/main.go`.
+- Russian-language Telegram bot with Telegram Bot API long polling. There is no HTTP server and no exposed port.
+- Core user features:
+  - weather by saved city via OpenWeatherMap;
+  - USD/EUR exchange rates via Central Bank of Russia data;
+  - AI summaries of Telegram channel news;
+  - daily scheduled mailing with weather, rates, and latest news summary.
+- Main composition root is `src/main.go`: it loads `.env`, creates the bot, opens Postgres, builds repositories, starts workers, registers middleware/handlers, then calls `bot.Start()`.
+
+## Runtime components
+
+- `src/main.go`
+  - starts `RateService`, `MessageService`, `SummaryService`, and `MailingService`;
+  - registers `/start`, `/admin`, reply keyboard handlers, callback handlers, and text-state handlers.
+- `src/handlers/`
+  - Telegram command/button flows and multi-step text inputs.
+- `src/admin_handlers/`
+  - `/admin` flow; gated by `ADMIN_ID`; can delete the last summary for a channel and signal regeneration.
+- `src/service/`
+  - background workers and cross-service orchestration.
+- `src/repository/`
+  - Postgres repositories plus external API clients for weather and Yandex Cloud AI.
+- `src/config/config.go`
+  - hardcoded monitored channel map and MTProto session directory.
+- `src/keyboard/`
+  - reply and inline keyboard button definitions.
+- `scripts/auth/`
+  - one-time MTProto login that writes `session/telegram-session/session.json`.
+- `scripts/historical_summary/`
+  - offline helper that summarizes the last 5 days and prints results; it does not persist summaries.
+- `db/migrations/0001_init.sql`
+  - full schema for users, rates, messages, and summaries.
+
+## Background workers
+
+- Rate fetcher (`src/service/rate.go`)
+  - fetches `https://www.cbr-xml-daily.ru/daily_json.js`;
+  - runs immediately, then every hour;
+  - stores raw `Valute` JSON in `rates`.
+- Message fetcher (`src/service/message.go`)
+  - uses gotd MTProto user client with `API_ID`, `API_HASH`, and file session under `session/telegram-session/session.json`;
+  - runs at startup, then every 15 minutes;
+  - reads channels from `config.Channels`;
+  - saves non-empty messages newer than the last saved message and within the last 24 hours;
+  - signals `MessagesFetched` after successful fetch.
+- Summary service (`src/service/summary.go`)
+  - runs at startup, on `MessagesFetched`, and on admin force-regenerate signal;
+  - creates at most one summary per channel per calendar day;
+  - reads messages for the last day and calls Yandex Cloud AI through `MLRepository`.
+- Mailing service (`src/service/mailing.go`)
+  - checks every minute after aligning to the next minute;
+  - compares current time in the user's fixed UTC offset (`timezone`, stored as a string like `"3"`) with `mailing_time`;
+  - sends weather, rates, and latest summary using the main keyboard.
+
+## Telegram mechanics
+
+- Commands:
+  - `/start` -> greeting with main keyboard.
+  - `/admin` -> admin actions when `ADMIN_ID` matches the current user chat ID.
+- Main keyboard buttons:
+  - `Погода` -> weather reply;
+  - `Курс` -> latest saved CBR rates;
+  - `Новости` -> latest summary for preferred channel;
+  - `Изменить канал` -> inline channel picker;
+  - `Изменить город` -> in-memory state, then city text validation through OpenWeatherMap;
+  - `Изменить время рассылки` -> in-memory state, preset buttons or `HH:MM`;
+  - `О боте` and `Написать нам` -> static informational replies.
+- Callback data:
+  - `channel_*` and `cancel_channel` for preferred channel selection;
+  - `admin_regenerate_summary` and `regenerate_summary_{id}` for summary regeneration.
+- `handlers.StateStorage` is in-memory and keyed by chat ID; city/time change state is lost on restart.
+- Middleware order matters:
+  - `MessageLogger`;
+  - `CreateOrUpdateUser`, which upserts users and attaches `user` to context.
+- New user defaults:
+  - city `Москва`;
+  - timezone `"3"`;
+  - mailing time `07:00`;
+  - preferred channel `1429590454` (`kontext_channel`).
+
+## Integrations and required configuration
+
+- `.env` is gitignored and loaded from repo root.
+- `DATABASE_URL`
+  - required for full app and scripts;
+  - apply `db/migrations/0001_init.sql` manually for local Postgres.
+- `BOT_TOKEN`
+  - required for Telegram Bot API long polling.
+- `YANDEX_SERVICE_ACCOUNT_KEY_PATH`, `YANDEX_FOLDER_ID`, `YANDEX_ASSISTANT_ID`
+  - required by `NewMLRepository()`;
+  - startup fails before polling if these are missing or invalid.
+- `API_ID`, `API_HASH`
+  - required for MTProto channel ingestion and `scripts/auth`.
+- `WEATHER_API_KEY`
+  - needed for weather flows and mailing weather.
+- `ADMIN_ID`
+  - optional unless `/admin` is used; must parse as Telegram chat ID.
+
+External services:
+
+- Telegram Bot API (`gopkg.in/telebot.v4`) for long polling and replies.
+- Telegram MTProto (`github.com/gotd/td`) for channel history ingestion.
+- CBR daily JSON (`cbr-xml-daily.ru`) for currency rates.
+- OpenWeatherMap (`api.openweathermap.org`) for weather and timezone offset by city.
+- Yandex Cloud AI Assistants over gRPC endpoint `assistant.api.cloud.yandex.net:443`.
+
+Hardcoded monitored channels in `src/config/config.go`:
+
+- `1429590454`: `kontext_channel`;
+- `1754252633`: `topor_live`.
+
+## Persistence
+
+- `users`
+  - stores Telegram user state: `chat_id`, `username`, `city`, `timezone`, `mailing_time`, `preferred_channel_id`.
+- `rates`
+  - stores rate snapshots by unique date and JSONB data.
+- `messages`
+  - stores Telegram channel messages with unique `(channel_id, message_id)`.
+- `summaries`
+  - stores AI summaries by channel and creation timestamp.
+
+Repository interfaces live in `src/repository/`. Mocks are generated into `src/mocks/repository/` with `go generate` directives on repository interface files.
+
+## Local and CI commands
+
+- Download dependencies: `go mod download`.
+- Build: `go build -v ./...`.
+- Test: `go test -v ./...`.
+- Run app: `go run ./src/main.go` with `.env`, Postgres, Yandex config, bot token, and MTProto session as needed.
+- MTProto auth: `go run ./scripts/auth/main.go --phone <number>`.
+- Docker dev image: `docker compose up --build`; compose does not start Postgres.
+
+CI uses Go 1.23 and runs only `go build -v ./...` and `go test -v ./...`. There is no golangci-lint job.
+
+## Operational gotchas
+
+- `go test ./...` is designed to run without live Postgres, Telegram, OpenWeatherMap, or Yandex Cloud; repository tests use sqlmock and services/handlers use gomock.
+- Docker Compose builds/runs only the app; Postgres is external.
+- Missing Yandex env vars fail startup in `NewRepositories()` even if testing a feature unrelated to summaries.
+- Missing MTProto session breaks the message/summary pipeline, but non-news bot flows can still work if DB and bot token are valid.
+- Production compose mounts `./session:/app/session` so MTProto session survives restarts.
+- `timezone` is a fixed UTC offset string, not an IANA timezone.
+- News replies must fit Telegram message length; `handlers/news.go` rejects summaries over 4096 characters.
+- Weather currently has two code paths: direct OpenWeatherMap call in `handlers/weather.go`, and `WeatherRepository` usage in mailing.
