@@ -5,6 +5,19 @@ services:
     image: ra1zee/gonewsbot:latest
     env_file:
       - .env
-    restart: unless-stopped 
+    restart: unless-stopped
     volumes:
       - ./session:/app/session
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - --label-enable
+      - --cleanup
+      - --interval
+      - "60"
