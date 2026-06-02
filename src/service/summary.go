@@ -94,7 +94,7 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 	if err := s.summaryRepo.SaveSummary(&repository.Summary{
 		ChannelID: peerID,
 		Summary:   summary,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}); err != nil {
 		return fmt.Errorf("failed to save summary for channel %d: %w", peerID, err)
 	}

@@ -50,14 +50,19 @@ func (r *SummaryRepository) SaveSummary(summary *Summary) error {
 }
 
 func (r *SummaryRepository) HasSummaryToday(channelID int64) (bool, error) {
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
 	var count int
 	query := `
 		SELECT COUNT(*) 
 		FROM summaries 
 		WHERE channel_id = $1 
-		AND DATE(created_at) = CURRENT_DATE
+		AND created_at >= $2
+		AND created_at < $3
 	`
-	err := r.db.QueryRow(query, channelID).Scan(&count)
+	err := r.db.QueryRow(query, channelID, startOfDay, endOfDay).Scan(&count)
 	if err != nil {
 		return false, err
 	}
