@@ -8,6 +8,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./session:/app/session
+      - ./authorized_key.json:/app/authorized_key.json
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 

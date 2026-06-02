@@ -2,3 +2,4 @@
 session
 
 authorized_key.json
+*.sh
