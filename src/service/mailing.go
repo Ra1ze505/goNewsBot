@@ -8,6 +8,7 @@ import (
 
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	"github.com/Ra1ze505/goNewsBot/src/repository"
+	"github.com/Ra1ze505/goNewsBot/src/telegramutil"
 	log "github.com/sirupsen/logrus"
 	tele "gopkg.in/telebot.v4"
 )
@@ -118,15 +119,19 @@ func (s *MailingService) sendMailings(ctx context.Context) {
 			fullMessage := fmt.Sprintf("Ежедневная рассылка:\n\n%s\n\n%s\n\n%s",
 				weatherMsg, ratesMsg, newsMsg)
 
-			_, err = s.bot.Send(&tele.User{ID: user.ChatID}, fullMessage, keyboard.GetStartKeyboard(), &tele.SendOptions{
-				ParseMode: tele.ModeMarkdown,
-			})
-			if err != nil {
-				log.Errorf("Error sending message to user %d: %v", user.ChatID, err)
-				log.Info("Try send plain text message")
-				_, err = s.bot.Send(&tele.User{ID: user.ChatID}, fullMessage, keyboard.GetStartKeyboard())
+			parts := telegramutil.SplitMessage(fullMessage)
+			for i, part := range parts {
+				opts := makeMailingSendOptions(i == len(parts)-1)
+
+				_, err = s.bot.Send(&tele.User{ID: user.ChatID}, part, opts...)
 				if err != nil {
-					log.Errorf("Error sending plain text message to user %d: %v", user.ChatID, err)
+					log.Errorf("Error sending mailing part %d/%d to user %d: %v", i+1, len(parts), user.ChatID, err)
+					log.Info("Try send plain text message")
+					_, err = s.bot.Send(&tele.User{ID: user.ChatID}, part, makeMailingPlainSendOptions(i == len(parts)-1)...)
+					if err != nil {
+						log.Errorf("Error sending plain text mailing part %d/%d to user %d: %v", i+1, len(parts), user.ChatID, err)
+						break
+					}
 				}
 			}
 		}
@@ -154,6 +159,23 @@ func (s *MailingService) getRatesMessage() (string, error) {
 		((rates.USD.Value-rates.USD.Previous)/rates.USD.Previous)*100,
 		rates.EUR.Value,
 		((rates.EUR.Value-rates.EUR.Previous)/rates.EUR.Previous)*100), nil
+}
+
+func makeMailingSendOptions(withKeyboard bool) []interface{} {
+	opts := []interface{}{
+		&tele.SendOptions{ParseMode: tele.ModeMarkdown},
+	}
+	if withKeyboard {
+		opts = append([]interface{}{keyboard.GetStartKeyboard()}, opts...)
+	}
+	return opts
+}
+
+func makeMailingPlainSendOptions(withKeyboard bool) []interface{} {
+	if withKeyboard {
+		return []interface{}{keyboard.GetStartKeyboard()}
+	}
+	return nil
 }
 
 func (s *MailingService) getNewsMessage(channelID int64) (string, error) {

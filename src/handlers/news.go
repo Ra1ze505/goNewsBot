@@ -5,6 +5,7 @@ import (
 
 	"github.com/Ra1ze505/goNewsBot/src/keyboard"
 	"github.com/Ra1ze505/goNewsBot/src/repository"
+	"github.com/Ra1ze505/goNewsBot/src/telegramutil"
 	tele "gopkg.in/telebot.v4"
 
 	log "github.com/sirupsen/logrus"
@@ -35,27 +36,39 @@ func (h *NewsHandler) Handle(c tele.Context) error {
 	}
 
 	message := summary.GetFormattedSummary()
-	if !isValidSummaryLength(message) {
-		return c.Send("Суммарная длина новостей превышает 4096 символов. Воспользуйтесь кнопкой 'Написать нам' и сообщите о проблеме.", keyboard.GetStartKeyboard())
-	}
+	parts := telegramutil.SplitMessage(message)
 
-	err = c.Send(message, keyboard.GetStartKeyboard(), &tele.SendOptions{
-		ParseMode: tele.ModeMarkdown,
-	})
+	for i, part := range parts {
+		opts := makeSendOptions(i == len(parts)-1)
 
-	if err != nil {
-		log.Errorf("Error sending news message to user %d: %v", c.Sender().ID, err)
-		log.Info("Try send plain text message")
-		err = c.Send(message, keyboard.GetStartKeyboard())
+		err = c.Send(part, opts...)
 		if err != nil {
-			log.Errorf("Error sending plain text message to user %d: %v", c.Sender().ID, err)
-			return err
+			log.Errorf("Error sending news message part %d/%d to user %d: %v", i+1, len(parts), c.Sender().ID, err)
+			log.Info("Try send plain text message")
+			err = c.Send(part, makePlainSendOptions(i == len(parts)-1)...)
+			if err != nil {
+				log.Errorf("Error sending plain text message part %d/%d to user %d: %v", i+1, len(parts), c.Sender().ID, err)
+				return err
+			}
 		}
 	}
-	return nil
 
+	return nil
 }
 
-func isValidSummaryLength(summary string) bool {
-	return len(summary) <= 4096
+func makeSendOptions(withKeyboard bool) []interface{} {
+	opts := []interface{}{
+		&tele.SendOptions{ParseMode: tele.ModeMarkdown},
+	}
+	if withKeyboard {
+		opts = append([]interface{}{keyboard.GetStartKeyboard()}, opts...)
+	}
+	return opts
+}
+
+func makePlainSendOptions(withKeyboard bool) []interface{} {
+	if withKeyboard {
+		return []interface{}{keyboard.GetStartKeyboard()}
+	}
+	return nil
 }
