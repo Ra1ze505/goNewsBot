@@ -30,13 +30,14 @@ func loadEnv() {
 }
 
 type Repositories struct {
-	UserRepository    repository.UserRepositoryInterface
-	RateRepository    repository.RateRepositoryInterface
-	SummaryRepository repository.SummaryRepositoryInterface
-	MessageRepository repository.MessageRepositoryInterface
-	MLRepository      repository.MLRepositoryInterface
-	WeatherRepository repository.WeatherRepositoryInterface
-	StateStorage      *handlers.StateStorage
+	UserRepository      repository.UserRepositoryInterface
+	RateRepository      repository.RateRepositoryInterface
+	SummaryRepository   repository.SummaryRepositoryInterface
+	StorylineRepository repository.StorylineRepositoryInterface
+	MessageRepository   repository.MessageRepositoryInterface
+	MLRepository        repository.MLRepositoryInterface
+	WeatherRepository   repository.WeatherRepositoryInterface
+	StateStorage        *handlers.StateStorage
 }
 
 func NewRepositories(db *sql.DB) *Repositories {
@@ -45,13 +46,14 @@ func NewRepositories(db *sql.DB) *Repositories {
 		log.Fatal(errors.Wrap(err, "Failed to initialize ML repository"))
 	}
 	return &Repositories{
-		UserRepository:    repository.NewUserRepository(db),
-		RateRepository:    repository.NewRateRepository(db),
-		SummaryRepository: repository.NewSummaryRepository(db),
-		MessageRepository: repository.NewMessageRepository(db),
-		MLRepository:      mlRepo,
-		WeatherRepository: repository.NewWeatherRepository(),
-		StateStorage:      handlers.NewStateStorage(),
+		UserRepository:      repository.NewUserRepository(db),
+		RateRepository:      repository.NewRateRepository(db),
+		SummaryRepository:   repository.NewSummaryRepository(db),
+		StorylineRepository: repository.NewStorylineRepository(db),
+		MessageRepository:   repository.NewMessageRepository(db),
+		MLRepository:        mlRepo,
+		WeatherRepository:   repository.NewWeatherRepository(),
+		StateStorage:        handlers.NewStateStorage(),
 	}
 }
 
@@ -89,7 +91,8 @@ func main() {
 
 	adminHandler := adminhandlers.NewAdminHandler(repositories.UserRepository, repositories.SummaryRepository)
 
-	summaryService := service.NewSummaryService(repositories.SummaryRepository, repositories.MLRepository, messageService.MessagesFetched, adminHandler.ForceRegenerateChannel)
+	storylineProcessor := service.NewStorylineProcessor(repositories.SummaryRepository, repositories.StorylineRepository, repositories.MLRepository)
+	summaryService := service.NewSummaryService(repositories.SummaryRepository, repositories.StorylineRepository, storylineProcessor, messageService.MessagesFetched, adminHandler.ForceRegenerateChannel)
 	summaryService.StartSummaryFetcher(ctx)
 
 	mailingService := service.NewMailingService(

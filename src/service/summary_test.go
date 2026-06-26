@@ -7,19 +7,26 @@ import (
 	"time"
 
 	mock_repository "github.com/Ra1ze505/goNewsBot/src/mocks/repository"
+	"github.com/Ra1ze505/goNewsBot/src/repository"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
+
+func newTestSummaryService(summaryRepo *mock_repository.MockSummaryRepositoryInterface, storylineRepo *mock_repository.MockStorylineRepositoryInterface, mlRepo *mock_repository.MockMLRepositoryInterface) *SummaryService {
+	processor := NewStorylineProcessor(summaryRepo, storylineRepo, mlRepo)
+	messagesFetched := make(chan struct{})
+	forceRegenerateChannel := make(chan struct{})
+	return NewSummaryService(summaryRepo, storylineRepo, processor, messagesFetched, forceRegenerateChannel)
+}
 
 func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
+	storylineRepo := mock_repository.NewMockStorylineRepositoryInterface(ctrl)
 	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
-	messagesFetched := make(chan struct{})
-	forceRegenerateChannel := make(chan struct{})
-	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched, forceRegenerateChannel)
+	service := newTestSummaryService(summaryRepo, storylineRepo, mlRepo)
 
 	tests := []struct {
 		name          string
@@ -28,12 +35,15 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name:   "Successfully process channel summaries",
+			name:   "Successfully process channel summaries (no topics)",
 			peerID: 123,
 			setupMocks: func() {
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
-				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1", "message2"}, nil)
-				mlRepo.EXPECT().SummarizeMessages([]string{"message1", "message2"}).Return("summary", nil)
+				storylineRepo.EXPECT().DeleteObservationsForDate(int64(123), gomock.Any()).Return(nil)
+				summaryRepo.EXPECT().GetMessagesForDateWithIDs(int64(123), gomock.Any()).
+					Return([]repository.MessageInput{{MessageID: 1, Text: "message1"}}, nil)
+				mlRepo.EXPECT().ExtractTopics(gomock.Any()).Return(nil, nil)
+				mlRepo.EXPECT().RenderDigest(gomock.Any()).Return("digest", nil)
 				summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(nil)
 			},
 			expectedError: nil,
@@ -55,31 +65,35 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 			expectedError: errors.New("failed to check summary existence for channel 123: database error"),
 		},
 		{
+			name:   "No messages found",
+			peerID: 123,
+			setupMocks: func() {
+				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
+				storylineRepo.EXPECT().DeleteObservationsForDate(int64(123), gomock.Any()).Return(nil)
+				summaryRepo.EXPECT().GetMessagesForDateWithIDs(int64(123), gomock.Any()).Return(nil, nil)
+			},
+			expectedError: nil,
+		},
+		{
 			name:   "Error getting messages",
 			peerID: 123,
 			setupMocks: func() {
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
-				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return(nil, errors.New("database error"))
+				storylineRepo.EXPECT().DeleteObservationsForDate(int64(123), gomock.Any()).Return(nil)
+				summaryRepo.EXPECT().GetMessagesForDateWithIDs(int64(123), gomock.Any()).Return(nil, errors.New("database error"))
 			},
 			expectedError: errors.New("failed to get messages for channel 123: database error"),
-		},
-		{
-			name:   "Error summarizing messages",
-			peerID: 123,
-			setupMocks: func() {
-				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
-				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1", "message2"}, nil)
-				mlRepo.EXPECT().SummarizeMessages([]string{"message1", "message2"}).Return("", errors.New("ml service error"))
-			},
-			expectedError: errors.New("failed to generate summary for channel 123: ml service error"),
 		},
 		{
 			name:   "Error saving summary",
 			peerID: 123,
 			setupMocks: func() {
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
-				summaryRepo.EXPECT().GetMessagesForLastDay(int64(123)).Return([]string{"message1", "message2"}, nil)
-				mlRepo.EXPECT().SummarizeMessages([]string{"message1", "message2"}).Return("summary", nil)
+				storylineRepo.EXPECT().DeleteObservationsForDate(int64(123), gomock.Any()).Return(nil)
+				summaryRepo.EXPECT().GetMessagesForDateWithIDs(int64(123), gomock.Any()).
+					Return([]repository.MessageInput{{MessageID: 1, Text: "message1"}}, nil)
+				mlRepo.EXPECT().ExtractTopics(gomock.Any()).Return(nil, nil)
+				mlRepo.EXPECT().RenderDigest(gomock.Any()).Return("digest", nil)
 				summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(errors.New("database error"))
 			},
 			expectedError: errors.New("failed to save summary for channel 123: database error"),
@@ -105,23 +119,26 @@ func TestSummaryService_StartSummaryFetcher(t *testing.T) {
 	defer ctrl.Finish()
 
 	summaryRepo := mock_repository.NewMockSummaryRepositoryInterface(ctrl)
+	storylineRepo := mock_repository.NewMockStorylineRepositoryInterface(ctrl)
 	mlRepo := mock_repository.NewMockMLRepositoryInterface(ctrl)
+	processor := NewStorylineProcessor(summaryRepo, storylineRepo, mlRepo)
 	messagesFetched := make(chan struct{})
 	forceRegenerateChannel := make(chan struct{})
-	service := NewSummaryService(summaryRepo, mlRepo, messagesFetched, forceRegenerateChannel)
+	service := NewSummaryService(summaryRepo, storylineRepo, processor, messagesFetched, forceRegenerateChannel)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// Set up expectations for each channel operation
 	summaryRepo.EXPECT().HasSummaryToday(gomock.Any()).Return(false, nil).AnyTimes()
-	summaryRepo.EXPECT().GetMessagesForLastDay(gomock.Any()).Return([]string{"message1"}, nil).AnyTimes()
-	mlRepo.EXPECT().SummarizeMessages([]string{"message1"}).Return("summary", nil).AnyTimes()
+	storylineRepo.EXPECT().DeleteObservationsForDate(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	summaryRepo.EXPECT().GetMessagesForDateWithIDs(gomock.Any(), gomock.Any()).
+		Return([]repository.MessageInput{{MessageID: 1, Text: "message1"}}, nil).AnyTimes()
+	mlRepo.EXPECT().ExtractTopics(gomock.Any()).Return(nil, nil).AnyTimes()
+	mlRepo.EXPECT().RenderDigest(gomock.Any()).Return("summary", nil).AnyTimes()
 	summaryRepo.EXPECT().SaveSummary(gomock.Any()).Return(nil).AnyTimes()
 
 	go service.StartSummaryFetcher(ctx)
 
-	// Send a message fetched signal
 	go func() {
 		messagesFetched <- struct{}{}
 	}()

@@ -10,8 +10,10 @@
 package mock_repository
 
 import (
+	context "context"
 	reflect "reflect"
 
+	repository "github.com/Ra1ze505/goNewsBot/src/repository"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -39,6 +41,82 @@ func (m *MockMLRepositoryInterface) EXPECT() *MockMLRepositoryInterfaceMockRecor
 	return m.recorder
 }
 
+// ConfirmMatch mocks base method.
+func (m *MockMLRepositoryInterface) ConfirmMatch(cand repository.CandidateTopic, options []repository.StorylineBrief) (int64, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConfirmMatch", cand, options)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ConfirmMatch indicates an expected call of ConfirmMatch.
+func (mr *MockMLRepositoryInterfaceMockRecorder) ConfirmMatch(cand, options any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmMatch", reflect.TypeOf((*MockMLRepositoryInterface)(nil).ConfirmMatch), cand, options)
+}
+
+// EmbedDocuments mocks base method.
+func (m *MockMLRepositoryInterface) EmbedDocuments(texts []string) ([][]float32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EmbedDocuments", texts)
+	ret0, _ := ret[0].([][]float32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EmbedDocuments indicates an expected call of EmbedDocuments.
+func (mr *MockMLRepositoryInterfaceMockRecorder) EmbedDocuments(texts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmbedDocuments", reflect.TypeOf((*MockMLRepositoryInterface)(nil).EmbedDocuments), texts)
+}
+
+// EmbedQueries mocks base method.
+func (m *MockMLRepositoryInterface) EmbedQueries(texts []string) ([][]float32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EmbedQueries", texts)
+	ret0, _ := ret[0].([][]float32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EmbedQueries indicates an expected call of EmbedQueries.
+func (mr *MockMLRepositoryInterfaceMockRecorder) EmbedQueries(texts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmbedQueries", reflect.TypeOf((*MockMLRepositoryInterface)(nil).EmbedQueries), texts)
+}
+
+// ExtractTopics mocks base method.
+func (m *MockMLRepositoryInterface) ExtractTopics(messages []repository.MessageInput) ([]repository.CandidateTopic, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExtractTopics", messages)
+	ret0, _ := ret[0].([]repository.CandidateTopic)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExtractTopics indicates an expected call of ExtractTopics.
+func (mr *MockMLRepositoryInterfaceMockRecorder) ExtractTopics(messages any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtractTopics", reflect.TypeOf((*MockMLRepositoryInterface)(nil).ExtractTopics), messages)
+}
+
+// RenderDigest mocks base method.
+func (m *MockMLRepositoryInterface) RenderDigest(groups repository.DigestGroups) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenderDigest", groups)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenderDigest indicates an expected call of RenderDigest.
+func (mr *MockMLRepositoryInterfaceMockRecorder) RenderDigest(groups any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenderDigest", reflect.TypeOf((*MockMLRepositoryInterface)(nil).RenderDigest), groups)
+}
+
 // SummarizeMessages mocks base method.
 func (m *MockMLRepositoryInterface) SummarizeMessages(messages []string) (string, error) {
 	m.ctrl.T.Helper()
@@ -52,4 +130,59 @@ func (m *MockMLRepositoryInterface) SummarizeMessages(messages []string) (string
 func (mr *MockMLRepositoryInterfaceMockRecorder) SummarizeMessages(messages any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SummarizeMessages", reflect.TypeOf((*MockMLRepositoryInterface)(nil).SummarizeMessages), messages)
+}
+
+// WriteDelta mocks base method.
+func (m *MockMLRepositoryInterface) WriteDelta(in repository.DeltaInput) (string, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteDelta", in)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// WriteDelta indicates an expected call of WriteDelta.
+func (mr *MockMLRepositoryInterfaceMockRecorder) WriteDelta(in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteDelta", reflect.TypeOf((*MockMLRepositoryInterface)(nil).WriteDelta), in)
+}
+
+// MocktokenProvider is a mock of tokenProvider interface.
+type MocktokenProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MocktokenProviderMockRecorder
+	isgomock struct{}
+}
+
+// MocktokenProviderMockRecorder is the mock recorder for MocktokenProvider.
+type MocktokenProviderMockRecorder struct {
+	mock *MocktokenProvider
+}
+
+// NewMocktokenProvider creates a new mock instance.
+func NewMocktokenProvider(ctrl *gomock.Controller) *MocktokenProvider {
+	mock := &MocktokenProvider{ctrl: ctrl}
+	mock.recorder = &MocktokenProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MocktokenProvider) EXPECT() *MocktokenProviderMockRecorder {
+	return m.recorder
+}
+
+// Token mocks base method.
+func (m *MocktokenProvider) Token(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Token", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Token indicates an expected call of Token.
+func (mr *MocktokenProviderMockRecorder) Token(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Token", reflect.TypeOf((*MocktokenProvider)(nil).Token), ctx)
 }

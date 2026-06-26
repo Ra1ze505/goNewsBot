@@ -85,6 +85,21 @@ func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetMessagesForDate(channel
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesForDate", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetMessagesForDate), channelID, date)
 }
 
+// GetMessagesForDateWithIDs mocks base method.
+func (m *MockSummaryRepositoryInterface) GetMessagesForDateWithIDs(channelID int64, date time.Time) ([]repository.MessageInput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMessagesForDateWithIDs", channelID, date)
+	ret0, _ := ret[0].([]repository.MessageInput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMessagesForDateWithIDs indicates an expected call of GetMessagesForDateWithIDs.
+func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetMessagesForDateWithIDs(channelID, date any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesForDateWithIDs", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetMessagesForDateWithIDs), channelID, date)
+}
+
 // GetMessagesForLastDay mocks base method.
 func (m *MockSummaryRepositoryInterface) GetMessagesForLastDay(channelID int64) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -98,6 +113,21 @@ func (m *MockSummaryRepositoryInterface) GetMessagesForLastDay(channelID int64) 
 func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetMessagesForLastDay(channelID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesForLastDay", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetMessagesForLastDay), channelID)
+}
+
+// GetMessagesForLastDayWithIDs mocks base method.
+func (m *MockSummaryRepositoryInterface) GetMessagesForLastDayWithIDs(channelID int64) ([]repository.MessageInput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMessagesForLastDayWithIDs", channelID)
+	ret0, _ := ret[0].([]repository.MessageInput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMessagesForLastDayWithIDs indicates an expected call of GetMessagesForLastDayWithIDs.
+func (mr *MockSummaryRepositoryInterfaceMockRecorder) GetMessagesForLastDayWithIDs(channelID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesForLastDayWithIDs", reflect.TypeOf((*MockSummaryRepositoryInterface)(nil).GetMessagesForLastDayWithIDs), channelID)
 }
 
 // HasSummaryToday mocks base method.

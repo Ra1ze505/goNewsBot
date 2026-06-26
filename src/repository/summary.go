@@ -15,6 +15,12 @@ type Summary struct {
 	CreatedAt time.Time
 }
 
+// MessageInput - сообщение канала с реальным message_id для резолва источников в TDT.
+type MessageInput struct {
+	MessageID int64
+	Text      string
+}
+
 func (s *Summary) GetFormattedSummary() string {
 	return fmt.Sprintf("Последние новости:\n%s\n\nСуммаризация от %s UTC", s.Summary, s.CreatedAt.Format("2006-01-02 15:04:05"))
 }
@@ -25,6 +31,8 @@ type SummaryRepositoryInterface interface {
 	GetMessagesForLastDay(channelID int64) ([]string, error)
 	GetLatestSummary(channelID int64) (*Summary, error)
 	GetMessagesForDate(channelID int64, date time.Time) ([]string, error)
+	GetMessagesForDateWithIDs(channelID int64, date time.Time) ([]MessageInput, error)
+	GetMessagesForLastDayWithIDs(channelID int64) ([]MessageInput, error)
 	DeleteLastSummary(channelID int64) error
 }
 
@@ -148,6 +156,59 @@ func (r *SummaryRepository) GetMessagesForDate(channelID int64, date time.Time) 
 		messages = append(messages, text)
 	}
 
+	return messages, rows.Err()
+}
+
+func (r *SummaryRepository) GetMessagesForDateWithIDs(channelID int64, date time.Time) ([]MessageInput, error) {
+	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	query := `
+		SELECT message_id, message_text 
+		FROM messages 
+		WHERE channel_id = $1 
+		AND message_date >= $2 
+		AND message_date < $3
+		ORDER BY message_date ASC
+	`
+
+	rows, err := r.db.Query(query, channelID, startOfDay, endOfDay)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanMessageInputs(rows)
+}
+
+func (r *SummaryRepository) GetMessagesForLastDayWithIDs(channelID int64) ([]MessageInput, error) {
+	query := `
+		SELECT message_id, message_text 
+		FROM messages 
+		WHERE channel_id = $1 
+		AND message_date >= NOW() - INTERVAL '1 day'
+		ORDER BY message_date ASC
+	`
+	rows, err := r.db.Query(query, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanMessageInputs(rows)
+}
+
+func scanMessageInputs(rows *sql.Rows) ([]MessageInput, error) {
+	var messages []MessageInput
+	for rows.Next() {
+		var msg MessageInput
+		var text sql.NullString
+		if err := rows.Scan(&msg.MessageID, &text); err != nil {
+			return nil, err
+		}
+		msg.Text = text.String
+		messages = append(messages, msg)
+	}
 	return messages, rows.Err()
 }
 

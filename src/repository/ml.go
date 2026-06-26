@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Ra1ze505/goNewsBot/src/config"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
@@ -45,6 +46,49 @@ const topicExtractionSystemPrompt = `Ты аналитик новостной р
 - Не выдумывай факты, которых нет в сообщениях.
 - Верни только валидный JSON без markdown.`
 
+const topicsExtractionSystemPrompt = `Ты аналитик новостной редакции.
+
+Преврати поток сообщений Telegram-канала в список топиков.
+
+Правила:
+- Объединяй связанные сообщения в один топик, даже если они написаны разными словами.
+- Удаляй рекламу, повторы, эмоциональные комментарии без фактов.
+- Не больше 8 топиков.
+- Оцени важность от 1 до 5.
+- Укажи рубрику (одно из: военное, происшествия, экономика, политика, общество, другое).
+- Сохраняй номера исходных сообщений, из которых собран топик.
+- Не выдумывай факты, которых нет в сообщениях.
+- Верни только валидный JSON без markdown.
+Схема: {"topics":[{"title","summary","category","importance","source_message_numbers":[..]}]}`
+
+const matchConfirmSystemPrompt = `Ты аналитик, который отслеживает развитие сюжетов в новостном канале.
+
+Тебе дан сегодняшний топик и несколько похожих существующих сюжетов канала.
+Реши: топик — это продолжение одного из сюжетов или это НОВЫЙ сюжет?
+Не объединяй разные по сути сюжеты.
+Верни только валидный JSON без markdown: {"matched_id": <id или null>, "is_new": <true|false>, "reason": "коротко"}.`
+
+const deltaSystemPrompt = `Ты аналитик, который ведёт хронику сюжета в новостном канале.
+
+Дан сюжет (его текущее состояние), сегодняшние сообщения по нему и статистика-факты.
+Статистику не оспаривай и не выдумывай иное.
+Задача:
+1) "delta_summary" — кратко что нового именно сегодня (1-2 предложения; может быть пустым, если новизны нет);
+2) "state" — обновлённое состояние сюжета, до 600 символов, без воды и без номеров сообщений.
+Верни только валидный JSON без markdown: {"delta_summary":"...","state":"..."}.`
+
+const groupedDigestSystemPrompt = `Ты выпускающий редактор Telegram-дайджеста.
+
+Собери дайджест по сгруппированным сюжетам. Группы и порядок (заголовок группы выводи только если в ней есть сюжеты):
+🆕 Новое — сюжеты из группы new;
+🔺 Эскалация — сюжеты из группы escalation;
+▶️ Развитие — сюжеты из группы ongoing.
+Для каждого сюжета: жирный заголовок и 1-2 предложения сути из его delta_summary/state.
+Группу recurring_noise НЕ перечисляй по одному — сверни в одну строку в конце:
+"Фон без изменений: <рубрики/темы через запятую>".
+Пиши по-русски, только факты из входных данных, без номеров сообщений, итог < 3500 символов.
+Верни только готовый текст без markdown-ограждений.`
+
 const digestRenderSystemPrompt = `Ты выпускающий редактор Telegram-дайджеста.
 
 Твоя задача — написать финальную сводку по готовому JSON-плану топиков.
@@ -59,7 +103,70 @@ const digestRenderSystemPrompt = `Ты выпускающий редактор T
 - Итог должен быть короче 3500 символов.`
 
 type MLRepositoryInterface interface {
+	// стадия A: извлечение топиков с рубриками и номерами исходных сообщений
+	ExtractTopics(messages []MessageInput) ([]CandidateTopic, error)
+	// стадия B: эмбеддинги (text-search-doc / text-search-query, 256d)
+	EmbedDocuments(texts []string) ([][]float32, error)
+	EmbedQueries(texts []string) ([][]float32, error)
+	// стадия C: подтверждение матчинга в "серой зоне"
+	ConfirmMatch(cand CandidateTopic, options []StorylineBrief) (matchedID int64, isNew bool, err error)
+	// стадия D: дельта + обновлённое состояние сюжета
+	WriteDelta(in DeltaInput) (newState string, deltaSummary string, err error)
+	// стадия F: рендер сгруппированного дайджеста
+	RenderDigest(groups DigestGroups) (string, error)
+
+	// обратная совместимость на время миграции (использует scripts/historical_summary)
 	SummarizeMessages(messages []string) (string, error)
+}
+
+// CandidateTopic - топик дня, извлечённый из сообщений (стадия A).
+type CandidateTopic struct {
+	Title                string
+	Summary              string
+	Category             string
+	Importance           int
+	SourceMessageNumbers []int   // позиционные номера в дневной пачке (1-based)
+	SourceMessageIDs     []int64 // реальные message_id, резолвятся в сервисе
+}
+
+// StorylineBrief - краткая карточка сюжета для LLM-подтверждения матчинга (стадия C).
+type StorylineBrief struct {
+	ID         int64
+	Title      string
+	State      string
+	LastSeen   string
+	AvgCount   float64
+	Similarity float64
+}
+
+// DeltaInput - вход для расчёта дельты и обновления состояния сюжета (стадия D).
+type DeltaInput struct {
+	Title            string
+	CurrentState     string
+	TodayCount       int
+	DaysSeen         int
+	WindowDays       int
+	MedianCount      float64
+	MedianImportance float64
+	ChangeType       string
+	TodayMessages    []string
+}
+
+// DigestItem - один сюжет в сгруппированном дайджесте (стадия F).
+type DigestItem struct {
+	Title        string
+	DeltaSummary string
+	State        string
+	Category     string
+	Importance   int
+}
+
+// DigestGroups - сгруппированные сюжеты для финального рендера (стадия F).
+type DigestGroups struct {
+	New            []DigestItem
+	Escalation     []DigestItem
+	Ongoing        []DigestItem // ongoing/deescalation с непустым delta_summary
+	RecurringNoise []string     // рубрики/темы фона
 }
 
 type chatCompletionParams struct {
@@ -73,6 +180,8 @@ type MLRepository struct {
 	baseURL       string
 	folderID      string
 	modelURI      string
+	embedDocURI   string
+	embedQueryURI string
 	extractPrompt string
 	renderPrompt  string
 	extractParams chatCompletionParams
@@ -111,6 +220,8 @@ func NewMLRepository() (*MLRepository, error) {
 		baseURL:       baseURL,
 		folderID:      folderID,
 		modelURI:      modelURI,
+		embedDocURI:   config.EmbedDocURI(folderID),
+		embedQueryURI: config.EmbedQueryURI(folderID),
 		extractPrompt: topicExtractionSystemPrompt,
 		renderPrompt:  digestRenderSystemPrompt,
 		extractParams: chatCompletionParams{
@@ -232,19 +343,23 @@ type summaryTopic struct {
 	SourceMessageNumbers []int  `json:"source_message_numbers"`
 }
 
-func (r *MLRepository) createChatCompletion(ctx context.Context, params chatCompletionParams, systemPrompt, userPrompt string) (string, error) {
-	token, err := r.tokenProvider.Token(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	client := openai.NewClient(
+func (r *MLRepository) newClient(token string) openai.Client {
+	return openai.NewClient(
 		option.WithAPIKey(token),
 		option.WithBaseURL(r.baseURL),
 		option.WithHeader("x-folder-id", r.folderID),
 		option.WithHTTPClient(r.httpClient),
 		option.WithRequestTimeout(yandexRequestTimeout),
 	)
+}
+
+func (r *MLRepository) createChatCompletion(ctx context.Context, params chatCompletionParams, systemPrompt, userPrompt string) (string, error) {
+	token, err := r.tokenProvider.Token(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	client := r.newClient(token)
 
 	completion, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model: shared.ChatModel(r.modelURI),
@@ -363,4 +478,262 @@ func validMessageNumbers(numbers []int, messageCount int) []int {
 		validNumbers = append(validNumbers, number)
 	}
 	return validNumbers
+}
+
+// --- Storyline Tracking / TDT ---
+
+type candidateTopicsPlan struct {
+	Topics []candidateTopicJSON `json:"topics"`
+}
+
+type candidateTopicJSON struct {
+	Title                string `json:"title"`
+	Summary              string `json:"summary"`
+	Category             string `json:"category"`
+	Importance           int    `json:"importance"`
+	SourceMessageNumbers []int  `json:"source_message_numbers"`
+}
+
+// ExtractTopics - стадия A: извлекает топики дня с рубриками и номерами сообщений.
+func (r *MLRepository) ExtractTopics(messages []MessageInput) ([]CandidateTopic, error) {
+	if len(messages) == 0 {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), yandexRequestTimeout)
+	defer cancel()
+
+	texts := make([]string, len(messages))
+	for i, m := range messages {
+		texts[i] = m.Text
+	}
+
+	raw, err := r.createChatCompletion(ctx, r.extractParams, topicsExtractionSystemPrompt, buildTopicsExtractionPrompt(texts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract topics: %w", err)
+	}
+
+	var plan candidateTopicsPlan
+	if err := json.Unmarshal([]byte(cleanResponse(raw)), &plan); err != nil {
+		return nil, fmt.Errorf("failed to parse topics plan: %w", err)
+	}
+
+	candidates := make([]CandidateTopic, 0, len(plan.Topics))
+	for _, t := range plan.Topics {
+		title := strings.TrimSpace(t.Title)
+		summary := strings.TrimSpace(t.Summary)
+		if title == "" || summary == "" {
+			continue
+		}
+		importance := t.Importance
+		if importance < 1 {
+			importance = 1
+		}
+		if importance > 5 {
+			importance = 5
+		}
+		candidates = append(candidates, CandidateTopic{
+			Title:                title,
+			Summary:              summary,
+			Category:             strings.TrimSpace(t.Category),
+			Importance:           importance,
+			SourceMessageNumbers: validMessageNumbers(t.SourceMessageNumbers, len(messages)),
+		})
+	}
+	return candidates, nil
+}
+
+func buildTopicsExtractionPrompt(messages []string) string {
+	var b strings.Builder
+	b.WriteString("Проанализируй сообщения канала и верни JSON строго по схеме:\n")
+	b.WriteString(`{"topics":[{"title":"короткий заголовок","summary":"фактическая суть","category":"экономика","importance":5,"source_message_numbers":[1,2]}]}`)
+	b.WriteString("\n\nЕсли значимых топиков нет, верни {\"topics\":[]}.\n")
+	b.WriteString("Сообщения:\n")
+	for i, msg := range messages {
+		b.WriteString(fmt.Sprintf("\n[#%d]\n%s\n", i+1, strings.TrimSpace(msg)))
+	}
+	return b.String()
+}
+
+// EmbedDocuments - эмбеддинги документов (состояний сюжетов) моделью text-search-doc.
+func (r *MLRepository) EmbedDocuments(texts []string) ([][]float32, error) {
+	return r.embed(r.embedDocURI, texts)
+}
+
+// EmbedQueries - эмбеддинги запросов (топиков-кандидатов) моделью text-search-query.
+func (r *MLRepository) EmbedQueries(texts []string) ([][]float32, error) {
+	return r.embed(r.embedQueryURI, texts)
+}
+
+func (r *MLRepository) embed(modelURI string, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), yandexRequestTimeout)
+	defer cancel()
+
+	token, err := r.tokenProvider.Token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client := r.newClient(token)
+
+	// Yandex эмбеддинги принимают по одному тексту на запрос — эмбеддим поштучно.
+	result := make([][]float32, 0, len(texts))
+	for _, text := range texts {
+		resp, err := client.Embeddings.New(ctx, openai.EmbeddingNewParams{
+			Model: openai.EmbeddingModel(modelURI),
+			Input: openai.EmbeddingNewParamsInputUnion{OfString: param.NewOpt(text)},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create embedding: %w", err)
+		}
+		if len(resp.Data) == 0 {
+			return nil, fmt.Errorf("received empty embedding response")
+		}
+		result = append(result, float64sToFloat32s(resp.Data[0].Embedding))
+	}
+	return result, nil
+}
+
+func float64sToFloat32s(in []float64) []float32 {
+	out := make([]float32, len(in))
+	for i, v := range in {
+		out[i] = float32(v)
+	}
+	return out
+}
+
+type confirmMatchResponse struct {
+	MatchedID *int64 `json:"matched_id"`
+	IsNew     bool   `json:"is_new"`
+	Reason    string `json:"reason"`
+}
+
+// ConfirmMatch - стадия C: LLM решает, продолжение это одного из сюжетов или новый сюжет.
+func (r *MLRepository) ConfirmMatch(cand CandidateTopic, options []StorylineBrief) (int64, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), yandexRequestTimeout)
+	defer cancel()
+
+	raw, err := r.createChatCompletion(ctx, r.extractParams, matchConfirmSystemPrompt, buildMatchConfirmPrompt(cand, options))
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to confirm match: %w", err)
+	}
+
+	var resp confirmMatchResponse
+	if err := json.Unmarshal([]byte(cleanResponse(raw)), &resp); err != nil {
+		return 0, false, fmt.Errorf("failed to parse match confirmation: %w", err)
+	}
+
+	if resp.IsNew || resp.MatchedID == nil {
+		return 0, true, nil
+	}
+	// Защита: id должен быть среди предложенных вариантов.
+	for _, o := range options {
+		if o.ID == *resp.MatchedID {
+			return *resp.MatchedID, false, nil
+		}
+	}
+	return 0, true, nil
+}
+
+func buildMatchConfirmPrompt(cand CandidateTopic, options []StorylineBrief) string {
+	type optionJSON struct {
+		ID         int64   `json:"id"`
+		Title      string  `json:"title"`
+		State      string  `json:"state"`
+		LastSeen   string  `json:"last_seen"`
+		AvgCount   float64 `json:"avg_count"`
+		Similarity float64 `json:"similarity"`
+	}
+	opts := make([]optionJSON, len(options))
+	for i, o := range options {
+		opts[i] = optionJSON{
+			ID:         o.ID,
+			Title:      o.Title,
+			State:      o.State,
+			LastSeen:   o.LastSeen,
+			AvgCount:   o.AvgCount,
+			Similarity: o.Similarity,
+		}
+	}
+	payload := map[string]any{
+		"topic":      map[string]any{"title": cand.Title, "summary": cand.Summary, "category": cand.Category},
+		"storylines": opts,
+	}
+	data, _ := json.MarshalIndent(payload, "", "  ")
+	return "Данные:\n" + string(data)
+}
+
+type writeDeltaResponse struct {
+	DeltaSummary string `json:"delta_summary"`
+	State        string `json:"state"`
+}
+
+// WriteDelta - стадия D: дельта дня и обновлённое состояние сюжета.
+func (r *MLRepository) WriteDelta(in DeltaInput) (string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), yandexRequestTimeout)
+	defer cancel()
+
+	raw, err := r.createChatCompletion(ctx, r.renderParams, deltaSystemPrompt, buildDeltaPrompt(in))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to write delta: %w", err)
+	}
+
+	var resp writeDeltaResponse
+	if err := json.Unmarshal([]byte(cleanResponse(raw)), &resp); err != nil {
+		return "", "", fmt.Errorf("failed to parse delta response: %w", err)
+	}
+
+	state := strings.TrimSpace(resp.State)
+	if state == "" {
+		state = strings.TrimSpace(in.CurrentState)
+	}
+	return state, strings.TrimSpace(resp.DeltaSummary), nil
+}
+
+func buildDeltaPrompt(in DeltaInput) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Сюжет: %s\n", in.Title))
+	b.WriteString(fmt.Sprintf("Текущее состояние: %s\n\n", in.CurrentState))
+	b.WriteString("Статистика (факты):\n")
+	b.WriteString(fmt.Sprintf("- встречался %d из %d дней окна\n", in.DaysSeen, in.WindowDays))
+	b.WriteString(fmt.Sprintf("- медиана %.1f сообщений/день, сегодня %d\n", in.MedianCount, in.TodayCount))
+	b.WriteString(fmt.Sprintf("- медианная важность %.1f\n", in.MedianImportance))
+	b.WriteString(fmt.Sprintf("- предварительная метка изменения: %s\n\n", in.ChangeType))
+	b.WriteString("Сегодняшние сообщения по сюжету:\n")
+	for i, msg := range in.TodayMessages {
+		b.WriteString(fmt.Sprintf("\n[#%d]\n%s\n", i+1, strings.TrimSpace(msg)))
+	}
+	return b.String()
+}
+
+// RenderDigest - стадия F: финальный сгруппированный дайджест.
+func (r *MLRepository) RenderDigest(groups DigestGroups) (string, error) {
+	if len(groups.New) == 0 && len(groups.Escalation) == 0 && len(groups.Ongoing) == 0 && len(groups.RecurringNoise) == 0 {
+		return "За последние сутки значимых новостей не найдено.", nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), yandexRequestTimeout)
+	defer cancel()
+
+	prompt, err := buildGroupedDigestPrompt(groups)
+	if err != nil {
+		return "", err
+	}
+
+	result, err := r.createChatCompletion(ctx, r.renderParams, groupedDigestSystemPrompt, prompt)
+	if err != nil {
+		return "", fmt.Errorf("failed to render digest: %w", err)
+	}
+	return cleanResponse(result), nil
+}
+
+func buildGroupedDigestPrompt(groups DigestGroups) (string, error) {
+	data, err := json.MarshalIndent(groups, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal digest groups: %w", err)
+	}
+	return "Собери Telegram-дайджест по этим сгруппированным сюжетам:\n\n" + string(data), nil
 }

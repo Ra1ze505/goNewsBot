@@ -11,18 +11,20 @@ import (
 )
 
 type SummaryService struct {
-	summaryRepo repository.SummaryRepositoryInterface
-	mlRepo      repository.MLRepositoryInterface
+	summaryRepo   repository.SummaryRepositoryInterface
+	storylineRepo repository.StorylineRepositoryInterface
+	processor     *StorylineProcessor
 	// Channel to receive signals from message service
 	messagesFetched <-chan struct{}
 	// Channel to receive signals from admin handler
 	forceRegenerateChannel <-chan struct{}
 }
 
-func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, mlRepo repository.MLRepositoryInterface, messagesFetched <-chan struct{}, forceRegenerateChannel <-chan struct{}) *SummaryService {
+func NewSummaryService(summaryRepo repository.SummaryRepositoryInterface, storylineRepo repository.StorylineRepositoryInterface, processor *StorylineProcessor, messagesFetched <-chan struct{}, forceRegenerateChannel <-chan struct{}) *SummaryService {
 	return &SummaryService{
 		summaryRepo:            summaryRepo,
-		mlRepo:                 mlRepo,
+		storylineRepo:          storylineRepo,
+		processor:              processor,
 		messagesFetched:        messagesFetched,
 		forceRegenerateChannel: forceRegenerateChannel,
 	}
@@ -74,7 +76,15 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 		return nil
 	}
 
-	messages, err := s.summaryRepo.GetMessagesForLastDay(peerID)
+	today := time.Now().UTC()
+
+	// Безопасность при админ-регенерации: откатываем сегодняшние наблюдения,
+	// чтобы повторный учёт объёма не исказил baseline (на первом прогоне дня — no-op).
+	if err := s.storylineRepo.DeleteObservationsForDate(peerID, today); err != nil {
+		return fmt.Errorf("failed to delete observations for channel %d: %w", peerID, err)
+	}
+
+	messages, err := s.summaryRepo.GetMessagesForDateWithIDs(peerID, today)
 	if err != nil {
 		return fmt.Errorf("failed to get messages for channel %d: %w", peerID, err)
 	}
@@ -84,9 +94,9 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 		return nil
 	}
 
-	log.Infof("Summarizing %d messages for channel %d", len(messages), peerID)
+	log.Infof("Processing %d messages for channel %d", len(messages), peerID)
 
-	summary, err := s.mlRepo.SummarizeMessages(messages)
+	summary, err := s.processor.ProcessDay(peerID, today, messages)
 	if err != nil {
 		return fmt.Errorf("failed to generate summary for channel %d: %w", peerID, err)
 	}
