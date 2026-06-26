@@ -213,6 +213,116 @@ func TestBuildTopicExtractionPromptNumbersAndTrimsMessages(t *testing.T) {
 	assert.True(t, strings.HasPrefix(prompt, "Проанализируй сообщения"))
 }
 
+func newTestMLRepo(server *httptest.Server) *MLRepository {
+	return &MLRepository{
+		httpClient:    server.Client(),
+		tokenProvider: staticTokenProvider{token: "test-token"},
+		baseURL:       server.URL + "/",
+		folderID:      "test-folder",
+		modelURI:      "gpt://test-folder/yandexgpt/latest",
+		embedDocURI:   "emb://test-folder/text-search-doc/latest",
+		embedQueryURI: "emb://test-folder/text-search-query/latest",
+		extractPrompt: topicExtractionSystemPrompt,
+		renderPrompt:  digestRenderSystemPrompt,
+		extractParams: chatCompletionParams{MaxTokens: defaultExtractMaxTokens, Temperature: defaultExtractTemperature},
+		renderParams:  chatCompletionParams{MaxTokens: defaultRenderMaxTokens, Temperature: defaultRenderTemperature},
+	}
+}
+
+func TestExtractTopicsParsesCandidates(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/chat/completions", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"{\"topics\":[{\"title\":\"Тема\",\"summary\":\"Суть\",\"category\":\"экономика\",\"importance\":9,\"source_message_numbers\":[1,2,99]}]}"}}]}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	repo := newTestMLRepo(server)
+
+	candidates, err := repo.ExtractTopics([]MessageInput{{MessageID: 10, Text: "a"}, {MessageID: 11, Text: "b"}})
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, "Тема", candidates[0].Title)
+	assert.Equal(t, "экономика", candidates[0].Category)
+	assert.Equal(t, 5, candidates[0].Importance)
+	assert.Equal(t, []int{1, 2}, candidates[0].SourceMessageNumbers) // 99 отброшен
+}
+
+func TestEmbedQueriesReturnsFloat32(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/embeddings", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"data":[{"embedding":[0.5,-0.25,1.0],"index":0,"object":"embedding"}],"model":"m","object":"list"}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	repo := newTestMLRepo(server)
+
+	vecs, err := repo.EmbedQueries([]string{"запрос"})
+	require.NoError(t, err)
+	require.Len(t, vecs, 1)
+	assert.Equal(t, []float32{0.5, -0.25, 1.0}, vecs[0])
+}
+
+func TestConfirmMatchValidatesID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"{\"matched_id\":42,\"is_new\":false,\"reason\":\"продолжение\"}"}}]}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	repo := newTestMLRepo(server)
+
+	matchedID, isNew, err := repo.ConfirmMatch(
+		CandidateTopic{Title: "T", Summary: "S"},
+		[]StorylineBrief{{ID: 42, Title: "Сюжет"}},
+	)
+	require.NoError(t, err)
+	assert.False(t, isNew)
+	assert.Equal(t, int64(42), matchedID)
+}
+
+func TestConfirmMatchUnknownIDFallsBackToNew(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"{\"matched_id\":999,\"is_new\":false}"}}]}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	repo := newTestMLRepo(server)
+
+	_, isNew, err := repo.ConfirmMatch(CandidateTopic{Title: "T"}, []StorylineBrief{{ID: 42}})
+	require.NoError(t, err)
+	assert.True(t, isNew)
+}
+
+func TestWriteDeltaFallsBackToCurrentState(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"{\"delta_summary\":\"новое\",\"state\":\"\"}"}}]}`))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	repo := newTestMLRepo(server)
+
+	state, delta, err := repo.WriteDelta(DeltaInput{Title: "T", CurrentState: "старое состояние", ChangeType: "ongoing"})
+	require.NoError(t, err)
+	assert.Equal(t, "старое состояние", state)
+	assert.Equal(t, "новое", delta)
+}
+
+func TestRenderDigestEmptyGroups(t *testing.T) {
+	repo := &MLRepository{}
+	result, err := repo.RenderDigest(DigestGroups{})
+	require.NoError(t, err)
+	assert.Equal(t, "За последние сутки значимых новостей не найдено.", result)
+}
+
 func TestParseSummaryTopicPlanNormalizesTopics(t *testing.T) {
 	topicPlan, err := parseSummaryTopicPlan(`{
 		"topics": [
