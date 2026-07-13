@@ -76,15 +76,17 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 		return nil
 	}
 
-	today := time.Now().UTC()
+	// Дайджест строим за последний завершившийся UTC-день: текущий день ещё
+	// наполняется, и сводка в его начале видела бы только первые сообщения.
+	targetDay := time.Now().UTC().AddDate(0, 0, -1)
 
-	// Безопасность при админ-регенерации: откатываем сегодняшние наблюдения,
+	// Безопасность при админ-регенерации: откатываем наблюдения обрабатываемого дня,
 	// чтобы повторный учёт объёма не исказил baseline (на первом прогоне дня — no-op).
-	if err := s.storylineRepo.DeleteObservationsForDate(peerID, today); err != nil {
+	if err := s.storylineRepo.DeleteObservationsForDate(peerID, targetDay); err != nil {
 		return fmt.Errorf("failed to delete observations for channel %d: %w", peerID, err)
 	}
 
-	messages, err := s.summaryRepo.GetMessagesForDateWithIDs(peerID, today)
+	messages, err := s.summaryRepo.GetMessagesForDateWithIDs(peerID, targetDay)
 	if err != nil {
 		return fmt.Errorf("failed to get messages for channel %d: %w", peerID, err)
 	}
@@ -96,7 +98,7 @@ func (s *SummaryService) ProcessChannelSummaries(peerID int64) error {
 
 	log.Infof("Processing %d messages for channel %d", len(messages), peerID)
 
-	summary, err := s.processor.ProcessDay(peerID, today, messages)
+	summary, err := s.processor.ProcessDay(peerID, targetDay, messages)
 	if err != nil {
 		return fmt.Errorf("failed to generate summary for channel %d: %w", peerID, err)
 	}

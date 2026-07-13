@@ -38,9 +38,14 @@ func TestSummaryService_ProcessChannelSummaries(t *testing.T) {
 			name:   "Successfully process channel summaries (no topics)",
 			peerID: 123,
 			setupMocks: func() {
+				// Дайджест должен собираться за последний завершившийся UTC-день,
+				// а не за текущий (в его начале сообщений ещё почти нет).
+				isYesterdayUTC := gomock.Cond(func(x time.Time) bool {
+					return x.Format("2006-01-02") == time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+				})
 				summaryRepo.EXPECT().HasSummaryToday(int64(123)).Return(false, nil)
-				storylineRepo.EXPECT().DeleteObservationsForDate(int64(123), gomock.Any()).Return(nil)
-				summaryRepo.EXPECT().GetMessagesForDateWithIDs(int64(123), gomock.Any()).
+				storylineRepo.EXPECT().DeleteObservationsForDate(int64(123), isYesterdayUTC).Return(nil)
+				summaryRepo.EXPECT().GetMessagesForDateWithIDs(int64(123), isYesterdayUTC).
 					Return([]repository.MessageInput{{MessageID: 1, Text: "message1"}}, nil)
 				mlRepo.EXPECT().ExtractTopics(gomock.Any()).Return(nil, nil)
 				mlRepo.EXPECT().RenderDigest(gomock.Any()).Return("digest", nil)
