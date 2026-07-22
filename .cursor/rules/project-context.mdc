@@ -38,7 +38,9 @@ Use this as the first map of the repository before exploring. Keep it updated wh
 - `scripts/auth/`
   - one-time MTProto login that writes `session/telegram-session/session.json`.
 - `scripts/historical_summary/`
-  - offline helper that summarizes the last 5 days and prints results; it does not persist summaries.
+ - offline helper that summarizes the last 5 days and prints results; it does not persist summaries.
+- `scripts/threshold_calibration/`
+ - offline calibration of `MatchSimLow`/`MatchSimHigh` on historical `storylines` data: replays matching, labels pairs with an LLM judge, prints precision/recall by threshold; caches embeddings and verdicts in a JSON file.
 - `db/migrations/0001_init.sql`
   - full schema for users, rates, messages, and summaries.
 
